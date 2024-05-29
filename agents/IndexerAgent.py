@@ -1,16 +1,5 @@
 # Define the response schema for our agent
 from langchain_core.pydantic_v1 import BaseModel, Field
-
-
-class Response(BaseModel):
-    """Final answer to the user"""
-
-    js: str = Field(description="The final JS code that user requested")
-    explanation: str = Field(
-        description="How did the agent come up with this answer?"
-    )
-
-
 from langchain_openai import ChatOpenAI
 from langchain_core.utils.function_calling import convert_to_openai_function
 
@@ -24,6 +13,15 @@ from langchain.tools import BaseTool
 from tools.near_primitives_types import near_primitives_types
 
 
+class Response(BaseModel):
+    """Final answer to the user"""
+
+    js: str = Field(description="The final JS code that user requested")
+    explanation: str = Field(
+        description="How did the agent come up with this answer?"
+    )
+
+
 def indexer_agent_model(tools):
 
     # Define the prompt for the agent
@@ -31,9 +29,10 @@ def indexer_agent_model(tools):
         [
             (
                 "system",
-                '''You are a JavaScript software engineer working with NEAR Protocol. 
-                You use various block heights 119688211, 119688186, 119688185 to understand the structure of the blocks by running JavaScript code on them.
+                '''You are a JavaScript software engineer working with NEAR Protocol.
                 For example, you can run `return block.actions().filter(a => a.receiverId==='receiver.near')` to get all the actions in a block to receiver.near. 
+                You iterate on the code by executing it on any block height and getting a schema of the result by calling Run_Javascript_On_Block_Schema tool
+                
                 Start with this example on how you can extract function calls from the block, filtered by receiver 'receiver.near': 
                 return block.actions()
                     .filter(a => a.receiverId==='receiver.near')
@@ -51,7 +50,7 @@ def indexer_agent_model(tools):
             ),
             # TODO: below should be replaced with a vector database that indexes GitHub repository or npm package types
             (
-                "system", 
+                "system",
                 "Here are the type definitions of the block object to help you navigate the block:" + near_primitives_types(),
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
@@ -59,7 +58,7 @@ def indexer_agent_model(tools):
     )
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4", temperature=0, streaming=True,)
 
     # Create the tools to bind to the model
     tools = [convert_to_openai_function(t) for t in tools]
@@ -68,6 +67,8 @@ def indexer_agent_model(tools):
     model = {"messages": RunnablePassthrough()} | prompt | llm.bind_tools(tools)
     return model
 
+
 def tool_executor(tools):
-    tool_executor = ToolExecutor(tools=tools)
-    return tool_executor
+    executor = ToolExecutor(tools=tools)
+    return executor
+

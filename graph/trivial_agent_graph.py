@@ -26,7 +26,8 @@ def should_continue(state):
     # Otherwise, we continue
     else:
         return "continue"
-    
+
+
 class IndexerAgentGraphBuilder(object):
     def __init__(self, model, tool_executor: ToolExecutor):
         self.model = model
@@ -37,7 +38,6 @@ class IndexerAgentGraphBuilder(object):
         messages = state["messages"]
         response = self.model.invoke(messages)
         return {"messages": messages + [response]}
-
 
     # Define the function to execute tools
     def call_tool(self, state):
@@ -94,3 +94,4 @@ class IndexerAgentGraphBuilder(object):
         # Compile the workflow
         app = graph.compile()
         return app
+

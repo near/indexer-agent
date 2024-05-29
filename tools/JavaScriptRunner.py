@@ -2,10 +2,15 @@ import requests
 import javascript
 import os.path
 import json
-import base64
+from langchain.pydantic_v1 import BaseModel, Field
+from langchain.tools import StructuredTool
+
+from utils import generate_schema
+
 
 def flatten(xss):
     return [x for xs in xss for x in xs]
+
 
 def fetch_block(height: int) -> str:
     filename = f'{height}.json'
@@ -18,12 +23,10 @@ def fetch_block(height: int) -> str:
     return streamer_message.text
 
 
-from langchain.pydantic_v1 import BaseModel, Field
-from langchain.tools import StructuredTool
-
 class TestJavascriptOnBlock(BaseModel):
     block_height: int = Field(..., title="Block height")
     js: str = Field(..., title="Javascript code to run that starts with 'return '")
+
 
 def run_js_on_block(block_height: int, js: str) -> str:
     streamer_message = fetch_block(block_height)
@@ -31,21 +34,39 @@ def run_js_on_block(block_height: int, js: str) -> str:
     try:
         block = primitives.Block.fromStreamerMessage(json.loads(streamer_message))
         result = javascript.eval_js(js)
-        if (hasattr(result, 'valueOf')):
+        if hasattr(result, 'valueOf'):
             result = result.valueOf()
     except Exception as e:
         return str(e)
     return result
 
 
+def run_js_on_block_only_schema(block_height: int, js: str) -> str:
+    json_res = run_js_on_block(block_height, js)
+    return generate_schema(json.loads(json_res))
+
+
 tool_js_on_block = StructuredTool.from_function(
     func=run_js_on_block,
     name="Run_Javascript_On_Block",
     description="""
-    Executes any javascript code on a block. 
+    Executes any javascript code on a block to check if it works correctly and get the result 
     To use it, pass the block height and the javascript statement to run.
     Add a 'return ' before the statement to get the result.
     The result is returned as a JSON string""",
+    args_schema=TestJavascriptOnBlock,
+    return_direct=False,
+)
+
+
+tool_js_on_block_schema = StructuredTool.from_function(
+    func=run_js_on_block,
+    name="Run_Javascript_On_Block_Schema",
+    description="""
+    Get JSON Schema of the result of execution of a javascript code on a given block height
+    To use it, pass the block height and the javascript statement to run.
+    Add a 'return ' before the statement to get the JSON Schema.
+    """,
     args_schema=TestJavascriptOnBlock,
     return_direct=False,
 )
@@ -66,11 +87,11 @@ def get_function_calls_from_block(block_height: int, receiver: str) -> str:
     primitives = javascript.require("@near-lake/primitives")
     block = primitives.Block.fromStreamerMessage(json.loads(streamer_message))
     operations = flatten([
-                        [make_function_call(op.valueOf(), a.valueOf()) for op in a.operations if op['FunctionCall']] 
-                        for a in block.actions() if a.receiverId == receiver])
+        [make_function_call(op.valueOf(), a.valueOf()) for op in a.operations if op['FunctionCall']]
+        for a in block.actions() if a.receiverId == receiver])
 
     function_calls = [op['FunctionCall'] for op in operations if op['FunctionCall']]
 
-#    decoded_function_calls = [{**call, 'args': base64.b64decode(call['args']).decode('utf-8')} for call in function_calls]
+    #    decoded_function_calls = [{**call, 'args': base64.b64decode(call['args']).decode('utf-8')} for call in function_calls]
 
     return json.dumps(function_calls)

@@ -6,7 +6,6 @@ def near_primitives_types():
     events = get_file_content("tools/near_primitives_types/events.d.ts")
 
     code = block + receipts + events
-    code = block + receipts + events
 
     code = code.replace('{', '{{')
     code = code.replace('}', '}}')
