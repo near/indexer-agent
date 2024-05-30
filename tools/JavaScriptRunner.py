@@ -43,7 +43,7 @@ def run_js_on_block(block_height: int, js: str) -> str:
 
 def run_js_on_block_only_schema(block_height: int, js: str) -> str:
     json_res = run_js_on_block(block_height, js)
-    return generate_schema(json.loads(json_res))
+    return generate_schema(json_res)
 
 
 tool_js_on_block = StructuredTool.from_function(
@@ -60,7 +60,7 @@ tool_js_on_block = StructuredTool.from_function(
 
 
 tool_js_on_block_schema = StructuredTool.from_function(
-    func=run_js_on_block,
+    func=run_js_on_block_only_schema,
     name="Run_Javascript_On_Block_Schema",
     description="""
     Get JSON Schema of the result of execution of a javascript code on a given block height
