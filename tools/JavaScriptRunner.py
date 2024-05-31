@@ -65,7 +65,11 @@ tool_js_on_block_schema = StructuredTool.from_function(
     description="""
     Get JSON Schema of the result of execution of a javascript code on a given block height
     To use it, pass the block height and the javascript statement to run.
-    Add a 'return ' before the statement to get the JSON Schema.
+    Add a 'return ' before the statement to get the JSON Schema and only use lowercase for variable block.
+    Start with this example on how you can extract function calls from the block, filtered by receiver 'receiver.near': 
+        return block.actions()
+            .filter(a => a.receiverId==='receiver.near')
+            .flatMap(a => a.operations.filter(op => !!op.FunctionCall)).map(op => op.FunctionCall)
     """,
     args_schema=TestJavascriptOnBlock,
     return_direct=False,
