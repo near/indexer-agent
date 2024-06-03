@@ -6,6 +6,8 @@ from langgraph.prebuilt import ToolExecutor,ToolInvocation
 import json
 from langchain_core.messages import ToolMessage
 
+from agents.BlockExtractorAgent import JsResponse
+
 
 class AgentState(TypedDict):
     messages: Sequence[BaseMessage]
@@ -19,7 +21,7 @@ def should_continue(state):
         return "end"
     # If there is a Response tool call, then we finish
     elif any(
-        tool_call["function"]["name"] == "Response"
+        tool_call["function"]["name"] == JsResponse.__name__
         for tool_call in last_message.additional_kwargs["tool_calls"]
     ):
         return "end"

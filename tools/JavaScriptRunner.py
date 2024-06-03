@@ -3,7 +3,7 @@ import javascript
 import os.path
 import json
 from langchain.pydantic_v1 import BaseModel, Field
-from langchain.tools import StructuredTool
+from langchain.tools import StructuredTool, tool
 
 from utils import generate_schema
 
@@ -46,6 +46,42 @@ def run_js_on_block_only_schema(block_height: int, js: str) -> str:
     return generate_schema(json_res)
 
 
+@tool
+def tool_js_on_block_schema(block_height: int, js: str) -> str:
+    """
+    Get JSON Schema of the result of execution of a javascript code on a given block height
+    To use it, pass the block height and the javascript statement to run.
+
+    Parameters:
+    block_height (int): Block height.
+    js (str): Javascript code to run that starts with 'return '.
+
+    Returns:
+    str: JSON schema of the result.
+    """
+    return run_js_on_block_only_schema(block_height, js)
+
+
+@tool
+def tool_js_on_block_schema_func(block_height: int, js: str, func_name: str) -> str:
+    """
+    Get JSON Schema of the result of execution of a javascript function code
+    and its name on a given block height.
+
+    Parameters:
+    block_height (int): Block height.
+    js (str): The code of a Javascript function to run on a block.
+    func_name (str): the name of the function.
+
+    Returns:
+    str: JSON schema of the result.
+    """
+    code = f"""{js}
+    
+return {func_name}(block)"""
+    return run_js_on_block_only_schema(block_height, code)
+
+
 tool_js_on_block = StructuredTool.from_function(
     func=run_js_on_block,
     name="Run_Javascript_On_Block",
@@ -54,23 +90,6 @@ tool_js_on_block = StructuredTool.from_function(
     To use it, pass the block height and the javascript statement to run.
     Add a 'return ' before the statement to get the result.
     The result is returned as a JSON string""",
-    args_schema=TestJavascriptOnBlock,
-    return_direct=False,
-)
-
-
-tool_js_on_block_schema = StructuredTool.from_function(
-    func=run_js_on_block_only_schema,
-    name="Run_Javascript_On_Block_Schema",
-    description="""
-    Get JSON Schema of the result of execution of a javascript code on a given block height
-    To use it, pass the block height and the javascript statement to run.
-    Add a 'return ' before the statement to get the JSON Schema and only use lowercase for variable block.
-    Start with this example on how you can extract function calls from the block, filtered by receiver 'receiver.near': 
-        return block.actions()
-            .filter(a => a.receiverId==='receiver.near')
-            .flatMap(a => a.operations.filter(op => !!op.FunctionCall)).map(op => op.FunctionCall)
-    """,
     args_schema=TestJavascriptOnBlock,
     return_direct=False,
 )
