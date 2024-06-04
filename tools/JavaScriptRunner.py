@@ -1,3 +1,5 @@
+import base64
+
 import requests
 import javascript
 import os.path
@@ -5,11 +7,7 @@ import json
 from langchain.pydantic_v1 import BaseModel, Field
 from langchain.tools import StructuredTool, tool
 
-from utils import generate_schema
-
-
-def flatten(xss):
-    return [x for xs in xss for x in xs]
+from utils import generate_schema, flatten
 
 
 def fetch_block(height: int) -> str:
@@ -115,6 +113,6 @@ def get_function_calls_from_block(block_height: int, receiver: str) -> str:
 
     function_calls = [op['FunctionCall'] for op in operations if op['FunctionCall']]
 
-    #    decoded_function_calls = [{**call, 'args': base64.b64decode(call['args']).decode('utf-8')} for call in function_calls]
+    decoded_function_calls = [{**call, 'args': base64.b64decode(call['args']).decode('utf-8')} for call in function_calls]
 
-    return json.dumps(function_calls)
+    return json.dumps(decoded_function_calls)

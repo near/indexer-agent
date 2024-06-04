@@ -49,7 +49,8 @@ def block_extractor_agent_model(tools):
                 
                 To check if a receipt is successful, you can check whether receipt.status.SuccessValue key is present.
                 
-                To get a js_schema of the result, make sure to use a Run_Javascript_On_Block_Schema tool on block 119688212.
+                To get a js_schema of the result, make sure to use a Run_Javascript_On_Block_Schema tool on 
+                sample blocks that you can get using tool_get_block_heights in then past 5 days.
                 by invoking generated JS function using `block` variable.
                 
                 Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 

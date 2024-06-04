@@ -23,3 +23,6 @@ def generate_schema(obj):
     else:
         raise ValueError(f"Cannot generate schema for {obj}")
 
+
+def flatten(xss):
+    return [x for xs in xss for x in xs]
