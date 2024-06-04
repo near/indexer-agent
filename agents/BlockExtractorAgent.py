@@ -3,13 +3,13 @@ import json
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.utils.function_calling import convert_to_openai_function
-
+from langgraph.prebuilt import ToolExecutor,ToolInvocation
 from langchain_core.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
 )
 from langchain_core.runnables import RunnablePassthrough
-
+from langchain_core.messages import ToolMessage,HumanMessage
 from tools.JavaScriptRunner import run_js_on_block_only_schema
 
 
@@ -22,13 +22,15 @@ class JsResponse(BaseModel):
         description="How did the agent come up with this answer?"
     )
 
-    def __str__(self):
-        return f"""
-js: ```{self.js.replace('\\n', '\n')}```
+def __str__(self):
+    js_formatted = self.js.replace('\\n', '\n')
+    return f"""
+js: ```{js_formatted}```
 
 js_schema: ```{self.js_schema}```
 
-explanation: {self.explanation}"""
+explanation: {self.explanation}
+"""
 
 
 def sanitized_schema_for(block_height: int, js: str) -> str:
@@ -89,3 +91,63 @@ def block_extractor_agent_model(tools):
              )
 
     return model
+
+class BlockExtractorAgent:
+    def __init__(self, model, tool_executor: ToolExecutor):
+        self.model = model
+        self.tool_executor = tool_executor
+
+    def call_model(self, state):
+        messages = state["messages"]
+        response = self.model.invoke(messages)
+        return {"messages": messages + [response]}
+    
+    def call_tool(self, state):
+        messages = state["messages"]
+        block_schema = state["block_schema"]
+        block_heights = state["block_heights"]
+        js_code = state["js_code"]
+        # We know the last message involves at least one tool call
+        last_message = messages[-1]
+
+        # We loop through all tool calls and append the message to our message log
+        for tool_call in last_message.additional_kwargs["tool_calls"]:
+            action = ToolInvocation(
+                tool=tool_call["function"]["name"],
+                tool_input=json.loads(tool_call["function"]["arguments"]),
+                id=tool_call["id"],
+            )
+
+            # We call the tool_executor and get back a response
+            response = self.tool_executor.invoke(action)
+            # We use the response to create a FunctionMessage
+            function_message = ToolMessage(
+                content=str(response), name=action.tool, tool_call_id=tool_call["id"]
+            )
+
+            # Add the function message to the list
+            messages.append(function_message)
+
+            if function_message.name == 'tool_get_block_heights':
+                block_heights = function_message.content
+            elif function_message.name == 'tool_js_on_block_schema_func':
+                block_schema = function_message.content
+                js_parse_args = tool_call['function']['arguments']
+                js_code = json.loads(js_parse_args)['js']
+
+        # We return a list, because this will get added to the existing list
+
+        return {"messages": messages, "block_schema":block_schema, "js_code": js_code, "block_heights":block_heights}
+    
+    def human_review(self,state):
+        messages = state['messages']
+        js_code = state["js_code"]
+        response=""
+        while response != "yes" or response != "no":
+            response = input(prompt=f"Please review the JS Code: {js_code}. Is it correct? (yes/no)")
+            if response == "yes":
+                return {"messages": messages, "should_continue":True}
+            elif response == "no":
+                feedback = input(f"Please provide feedback on the javascript call: {js_code}")
+                feedback += "Retry using tool tool_js_on_block_schema_func with the updated javascript call"
+                return {"messages": messages + [HumanMessage(content=feedback)]}
