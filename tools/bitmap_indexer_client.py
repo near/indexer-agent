@@ -16,6 +16,7 @@ def get_block_heights(receiver: str, from_days_ago: int = 7, limit=10) -> [int]:
     """
     date_seven_days_ago = datetime.now() - timedelta(days=from_days_ago)
 
+    print(f"Getting block heights from bitmap indexer for receiver={receiver} from_days_ago={from_days_ago} limit={limit}")
     block_heights = graphql_query(receiver, date_seven_days_ago.date().isoformat())
     return block_heights[:limit]
 
@@ -47,7 +48,7 @@ def graphql_query(receiver: str, starting_block_date: str):
         result = [compressed_base64_to_heights(b['first_block_height'], b['bitmap']) for b in bitmaps if b['bitmap']]
         return flatten(result)
     else:
-        return f"Request failed with status code {response.status_code}"
+        raise Exception(f"Request failed with status code {response.status_code}")
 
 
 def compressed_base64_to_heights(first_block_height, compressed_base64):

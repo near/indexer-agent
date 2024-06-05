@@ -8,7 +8,9 @@ from langchain.pydantic_v1 import BaseModel, Field
 from langchain.tools import StructuredTool, tool
 from typing import Union,Any
 
+from tools.bitmap_indexer_client import get_block_heights
 from utils import generate_schema, flatten
+from genson import SchemaBuilder
 
 
 def fetch_block(height: int) -> str:
@@ -45,6 +47,45 @@ def run_js_on_block_only_schema(block_height: int, js: str) -> str:
     if isinstance(json_res, Exception):
         return f"Javascript code is incorrect, here is the exception: {json_res}"
     return generate_schema(json_res)
+
+
+def run_js_on_blocks_only_schema(block_heights: [int], js: str) -> str:
+    schema_builder = SchemaBuilder(schema_uri=None)
+    results = [run_js_on_block(height, js) for height in block_heights]
+    for s in results:
+        schema_builder.add_object(s)
+    return schema_builder.to_json(indent=2)
+
+
+def infer_schema_of_js(receiver: str, js: str, from_days_ago=100, limit=10) -> str:
+    block_heights = get_block_heights(receiver, from_days_ago, limit)
+    schema_builder = SchemaBuilder(schema_uri=None)
+    cur_schema = None
+    for height in block_heights:
+        print(f"Inferring schema for {js} on block height {height}")
+        js_res = run_js_on_block(height, js)
+        if isinstance(js_res, Exception):
+            return f"Javascript code is incorrect on block height {height}, here is the exception: {js_res}"
+        schema_builder.add_object(js_res)
+        new_schema = schema_builder.to_json(indent=2)
+        if cur_schema != new_schema:
+            cur_schema = new_schema
+        else:
+            return cur_schema
+
+
+@tool
+def tool_infer_schema_of_js(receiver: str, js: str, from_days_ago=100, limit=10) -> str:
+    """
+    Infers JSON schema of the result of execution of a javascript code on
+    block heights where receipts to 'receiver' are present in the last 'from_days_ago' days.
+    :param receiver: receiver smart contract for the exact match
+    :param js: Javascript code to run that starts with 'return '
+    :param from_days_ago: from how many days ago to start the search
+    :param limit: limit the number of results, default is 10
+    :return:
+    """
+    return infer_schema_of_js(receiver, js, from_days_ago, limit)
 
 
 @tool
