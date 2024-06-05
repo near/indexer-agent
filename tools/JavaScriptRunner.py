@@ -6,6 +6,7 @@ import os.path
 import json
 from langchain.pydantic_v1 import BaseModel, Field
 from langchain.tools import StructuredTool, tool
+from typing import Union,Any
 
 from utils import generate_schema, flatten
 
@@ -26,7 +27,7 @@ class TestJavascriptOnBlock(BaseModel):
     js: str = Field(..., title="Javascript code to run that starts with 'return '")
 
 
-def run_js_on_block(block_height: int, js: str) -> str:
+def run_js_on_block(block_height: int, js: str) -> Union[Any, Exception]:
     streamer_message = fetch_block(block_height)
     primitives = javascript.require("@near-lake/primitives")
     try:
@@ -35,12 +36,14 @@ def run_js_on_block(block_height: int, js: str) -> str:
         if hasattr(result, 'valueOf'):
             result = result.valueOf()
     except Exception as e:
-        return str(e)
+        return e
     return result
 
 
 def run_js_on_block_only_schema(block_height: int, js: str) -> str:
     json_res = run_js_on_block(block_height, js)
+    if isinstance(json_res, Exception):
+        return f"Javascript code is incorrect, here is the exception: {json_res}"
     return generate_schema(json_res)
 
 
