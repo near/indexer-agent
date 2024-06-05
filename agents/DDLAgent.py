@@ -71,7 +71,7 @@ def ddl_code_model_v2(tools):
                 '''You are a Postgres SQL engineer working with a Javascript Developer.
                 
                 Based on this schema, generate a DDL script for a Postgres database to create a 
-                table that can store the result.
+                table that can store the result. Be sure to include and define a primary key, when in doubt fallback on receipt_id.
                 
                 Convert all field names to snake case and don't remove any words from them.
                 
@@ -89,7 +89,7 @@ def ddl_code_model_v2(tools):
     # # Create the tools to bind to the model
     # tools = [convert_to_openai_function(DDLAgentResponse)]
 
-    model = {"messages": RunnablePassthrough()} | prompt | llm #.bind_tools(tools,tool_choice="any")
+    model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(DDLResponse) #.bind_tools(tools,tool_choice="any")
     return model
 
 class DDLCodeAgent:
@@ -101,11 +101,9 @@ class DDLCodeAgent:
         messages = state['messages']
         ddl_code = state['ddl_code']
         response = self.model.invoke(messages)
-        try:
-            ddl_code = json.loads(response.content.replace('```json\n', '').replace('\n```', ''))['ddl']
-        except:
-            ddl_code=""
-        return {"messages": messages + [response],"ddl_code":ddl_code, "should_continue": False, "iterations":0}
+        ddl_code = response.ddl
+        wrapped_message = SystemMessage(content=str(response))
+        return {"messages": messages + [wrapped_message],"ddl_code":ddl_code, "should_continue": False, "iterations":0}
     
     def call_tool(self, state):
         messages = state["messages"]
