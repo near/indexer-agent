@@ -3,6 +3,7 @@ import base64
 import requests
 import javascript
 import os.path
+from pathlib import Path
 import json
 from langchain.pydantic_v1 import BaseModel, Field
 from langchain.tools import StructuredTool, tool
@@ -14,7 +15,8 @@ from genson import SchemaBuilder
 
 
 def fetch_block(height: int) -> str:
-    filename = f'{height}.json'
+    Path(".blockcache").mkdir(exist_ok=True)
+    filename = f'.blockcache/{height}.json'
     if os.path.isfile(filename):
         with open(filename, 'r') as f:
             return f.read()
