@@ -112,7 +112,8 @@ def block_extractor_agent_model_v2(tools):
                 by invoking generated JS function using `block` variable.
                 
                 Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
-                replaced with their escaped version (\\\\n) to make these strings valid for JSON.
+                replaced with their escaped version (\\\\n) to make these strings valid for JSON. 
+                Ensure that you output correct Javascript Code.
                 ''',
             ),
             (
@@ -135,7 +136,7 @@ def block_extractor_agent_model_v2(tools):
     ).partial(format_instructions=jsreponse_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
 
     # Create the tools to bind to the model
     tools = [convert_to_openai_function(t) for t in tools]
@@ -154,11 +155,20 @@ class BlockExtractorAgent:
 
     def call_model(self, state):
         messages = state["messages"]
+        error = state["error"]
+        js_code = state["js_code"]
+        if error != "":
+            reflection_msg = f"""You tried to run the following Javascript function and returned an error. Reflect on this error, change the javascript function code and try again.
+            Javascript function: {js_code}
+            Error: {error}"""
+            messages += [HumanMessage(content=reflection_msg)]
         response = self.model.invoke(messages)
         return {"messages": messages + [response]}
     
     def call_tool(self, state):
         messages = state["messages"]
+        iterations = state["iterations"]
+        error = state["error"]
         block_schema = state["block_schema"]
         block_heights = state["block_heights"]
         js_code = state["js_code"]
@@ -186,23 +196,27 @@ class BlockExtractorAgent:
             if function_message.name == 'tool_get_block_heights':
                 block_heights = function_message.content
             elif function_message.name == 'tool_js_on_block_schema_func':
-                block_schema = function_message.content
+                if function_message.content.startswith("Javascript code is incorrect"):
+                    error = function_message.content
+                else:
+                    block_schema = function_message.content
                 js_parse_args = tool_call['function']['arguments']
                 js_code = json.loads(js_parse_args)['js']
 
         # We return a list, because this will get added to the existing list
 
-        return {"messages": messages, "block_schema":block_schema, "js_code": js_code, "block_heights":block_heights}
+        return {"messages": messages, "block_schema":block_schema, "js_code": js_code, "block_heights":block_heights, "iterations":iterations+1,"error":error}
     
     def human_review(self,state):
         messages = state['messages']
         js_code = state["js_code"]
+        block_schema = state["block_schema"]
         response=""
         while response != "yes" or response != "no":
-            response = input(prompt=f"Please review the JS Code: {js_code}. Is it correct? (yes/no)")
+            response = input(prompt=f"Please review the Block Schema: {block_schema}. Is it correct? (yes/no)")
             if response == "yes":
                 return {"messages": messages, "should_continue":True}
             elif response == "no":
                 feedback = input(f"Please provide feedback on the javascript call: {js_code}")
-                feedback += "Retry using tool tool_js_on_block_schema_func with the updated javascript call"
+                feedback += f"Retry the JS code generation using the feedback provided. This is the previous code: {js_code}"
                 return {"messages": messages + [HumanMessage(content=feedback)]}
