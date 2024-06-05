@@ -11,7 +11,7 @@ from langchain_core.prompts import (
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.messages import ToolMessage,HumanMessage
 from tools.JavaScriptRunner import run_js_on_block_only_schema
-
+from langchain.output_parsers import PydanticOutputParser
 
 class JsResponse(BaseModel):
     """Final answer to the user"""
@@ -21,6 +21,8 @@ class JsResponse(BaseModel):
     explanation: str = Field(
         description="How did the agent come up with this answer?"
     )
+
+jsreponse_parser = PydanticOutputParser(pydantic_object=JsResponse)
 
 def __str__(self):
     js_formatted = self.js.replace('\\n', '\n')
@@ -84,6 +86,59 @@ def block_extractor_agent_model(tools):
     # Create the tools to bind to the model
     tools = [convert_to_openai_function(t) for t in tools]
     tools.append(convert_to_openai_function(JsResponse))
+
+    model = ({"messages": RunnablePassthrough()}
+             | prompt
+             | llm.bind_tools(tools, tool_choice="any")
+             )
+
+    return model
+
+def block_extractor_agent_model_v2(tools):
+
+    # Define the prompt for the agent
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                '''You are a JavaScript software engineer working with NEAR Protocol. You are only writing pure
+                JS function `extractData` that accepts a block object and returns a result. You can only use standard JavaScript functions
+                and no TypeScript.
+                
+                To check if a receipt is successful, you can check whether receipt.status.SuccessValue key is present.
+                
+                To get a js_schema of the result, make sure to use a Run_Javascript_On_Block_Schema tool on 
+                sample blocks that you can get using tool_get_block_heights in then past 5 days.
+                by invoking generated JS function using `block` variable.
+                
+                Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
+                replaced with their escaped version (\\\\n) to make these strings valid for JSON.
+                ''',
+            ),
+            (
+                "system",
+                "`block.actions()` that has following schema:"
+                + sanitized_schema_for(119688212, 'return block.actions()'),
+            ),
+            (
+                "system",
+                "`block.receipts()` that has following schema:"
+                + sanitized_schema_for(119688212, 'return block.receipts()'),
+            ),
+            (
+                "system",
+                "`block.header()` that has following schema:"
+                + sanitized_schema_for(119688212, 'return block.header()'),
+            ),
+            MessagesPlaceholder(variable_name="messages", optional=True),
+        ]
+    ).partial(format_instructions=jsreponse_parser.get_format_instructions())
+
+    # Create the OpenAI LLM
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True,)
+
+    # Create the tools to bind to the model
+    tools = [convert_to_openai_function(t) for t in tools]
 
     model = ({"messages": RunnablePassthrough()}
              | prompt

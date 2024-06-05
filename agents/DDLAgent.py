@@ -5,13 +5,11 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.utils.function_calling import convert_to_openai_function
 from langchain_core.runnables import RunnablePassthrough
-
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-)
+from langchain_core.prompts import ChatPromptTemplate,MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough
 from langgraph.prebuilt import ToolExecutor,ToolInvocation
-from langchain_core.messages import ToolMessage,SystemMessage
+from langchain_core.messages import ToolMessage,SystemMessage,HumanMessage
+from langchain.output_parsers import PydanticOutputParser
 
 class DDLAgentResponse(BaseModel):
     """Final answer to the user"""
@@ -61,7 +59,9 @@ class DDLResponse(BaseModel):
         description="How did the agent come up with this answer?"
     )
 
-def ddl_code_model(tools):
+ddl_parser = PydanticOutputParser(pydantic_object=DDLResponse)
+
+def ddl_code_model_v2(tools):
 
     # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
@@ -70,26 +70,26 @@ def ddl_code_model(tools):
                 "system",
                 '''You are a Postgres SQL engineer working with a Javascript Developer.
                 
-                Get the schema of the result by using the tool tool_js_on_block_schema. 
                 Based on this schema, generate a DDL script for a Postgres database to create a 
                 table that can store the result.
                 
                 Convert all field names to snake case and don't remove any words from them.
                 
-                Output result in a DDLAgentResponse format where 'code' field should have newlines (\\n) 
-                replaced with their escaped version (\\\\n) to make the string valid for JSON.
+                Output result in a DDLAgentResponse format where 'ddl' field should have newlines (\\n) 
+                replaced with their escaped version (\\\\n) to make the string valid for PostgreSQL.
                 ''',
             ),
+            MessagesPlaceholder(variable_name="messages", optional=True),
         ]
-    )
+    ).partial(format_instructions=ddl_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True,)
 
-    # Create the tools to bind to the model
-    tools = [convert_to_openai_function(t) for t in tools]
+    # # Create the tools to bind to the model
+    # tools = [convert_to_openai_function(DDLAgentResponse)]
 
-    model = {"messages": RunnablePassthrough()} | prompt | llm.bind_tools(tools,tool_choice="any")
+    model = {"messages": RunnablePassthrough()} | prompt | llm #.bind_tools(tools,tool_choice="any")
     return model
 
 class DDLCodeAgent:
@@ -99,11 +99,13 @@ class DDLCodeAgent:
 
     def call_model(self, state):
         messages = state['messages']
+        ddl_code = state['ddl_code']
         response = self.model.invoke(messages)
-        return {"messages": messages + [response],"should_continue": False, "iterations":0}
-        # context = messages + [SystemMessage(content=f"Parsed Block Schema: {block_schema}")]
-        # ddl_code = response.ddl
-        # We reset should_continue and iterations because we need these for DML review
+        try:
+            ddl_code = json.loads(response.content.replace('```json\n', '').replace('\n```', ''))['ddl']
+        except:
+            ddl_code=""
+        return {"messages": messages + [response],"ddl_code":ddl_code, "should_continue": False, "iterations":0}
     
     def call_tool(self, state):
         messages = state["messages"]
@@ -141,3 +143,16 @@ class DDLCodeAgent:
         # We return a list, because this will get added to the existing list
 
         return {"messages": messages, "block_schema":block_schema, "js_code": js_code, "block_heights":block_heights}
+    
+    def human_review(self,state):
+        messages = state['messages']
+        ddl_code = state["ddl_code"]
+        response=""
+        while response != "yes" or response != "no":
+            response = input(prompt=f"Please review the DDL Code: {ddl_code}. Is it correct? (yes/no)")
+            if response == "yes":
+                return {"messages": messages, "should_continue":True}
+            elif response == "no":
+                feedback = input(f"Please provide feedback on the ddl code: {ddl_code}")
+                feedback += "Retry the DDL code generation with the correct schema"
+                return {"messages": messages + [HumanMessage(content=feedback)]}

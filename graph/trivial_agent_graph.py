@@ -10,7 +10,30 @@ from agents.BlockExtractorAgent import JsResponse
 
 
 class AgentState(TypedDict):
+    """
+    Represents the state of our graph.
+
+    Attributes:
+        messages: With user questions, tracking plans, reasoning
+        block_heights: Block heights of the blocks to be parsed
+        js_code: Javascript code to be run on block schema
+        block_schema: Extracted block schema from json of blocks 
+        ddl_code: Data Definition Language code for creating tables
+        dml_code: Data manipulation language code for inserting data using context.db
+        iterations: Number of tries to generate the code
+        error: error message if any
+        should_continue: Binary flag for control flow to indicate whether to continue or not
+    """
+        
     messages: Sequence[BaseMessage]
+    block_heights: Sequence[int]
+    block_schema: str
+    js_code: str
+    ddl_code: str
+    dml_code: str
+    iterations: int
+    error: str
+    should_continue: bool
 
 
 # Define the function that determines whether to continue or not
@@ -28,7 +51,6 @@ def should_continue(state):
     # Otherwise, we continue
     else:
         return "continue"
-
 
 class IndexerAgentGraphBuilder(object):
     def __init__(self, model, tool_executor: ToolExecutor):
@@ -66,7 +88,6 @@ class IndexerAgentGraphBuilder(object):
             messages.append(function_message)
 
         # We return a list, because this will get added to the existing list
-
         return {"messages": messages}
     
     def graph(self):
