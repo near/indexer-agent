@@ -75,7 +75,7 @@ def dml_code_model(tools):
     ).partial(format_instructions=dml_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
 
     # Create the tools to bind to the model
     tools = [convert_to_openai_function(t) for t in tools]
@@ -93,7 +93,7 @@ def dml_code_model_v2(tools):
                 '''
                 You are a JavaScript software engineer working with NEAR Protocol. Your task is to write a pure JavaScript function 
                 that accepts a JSON schema and PostgreSQL DDL, then generates DML for inserting data from the blockchain into the 
-                specified table.
+                specified table. Output only valid Javascript code.
 
                 Convert function names to PascalCase when calling database functions. Do not use a for loop to insert data. 
                 Instead, map the data variables and feed them into the upsert function.
@@ -121,25 +121,30 @@ class DMLCodeAgent:
         self.tool_executor = tool_executor
 
     def call_model(self, state):
-        messages = state['messages']
-        dml_code = state['dml_code']
-        iterations = state['iterations']
+        messages = state.messages
+        ddl_code = state.ddl_code
+        dml_code = state.dml_code
+        js_code = state.js_code
+        iterations = state.iterations
+        messages.append(SystemMessage(content=f"""
+            Postgresql schema: {ddl_code}
+            Javascript Function: {js_code}"""))
         response = self.model.invoke(messages)
         wrapped_message = SystemMessage(content=str(response))
         dml_code = response.dml
         return {"messages": messages + [wrapped_message],"dml_code": dml_code, "should_continue": False,"iterations":iterations+1}
     
     def human_review(self,state):
-        messages = state["messages"]
+        messages = state.messages
         # last_tool_call = messages[-2]
         # get_block_schema_call =  last_tool_call.additional_kwargs["tool_calls"][0]["function"]["arguments"]
-        dml_code = state["dml_code"]
-        error = state["error"]
+        dml_code = state.dml_code
+        error = state.error
         response=""
         while response != "yes" or response != "no":
             response = input(prompt=f"Please review the DML code: {dml_code}. Is it correct? (yes/no)")
             if response == "yes":
-                return {"messages": messages, "should_continue": True}
+                return {"messages": messages, "should_continue": True, "iterations":0}
             elif response == "no":
                 feedback = input(f"Please provide feedback on the DML code: {dml_code}")
                 return {"messages": messages + [HumanMessage(content=feedback)], "should_continue": False}

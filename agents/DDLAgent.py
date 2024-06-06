@@ -84,7 +84,7 @@ def ddl_code_model_v2(tools):
     ).partial(format_instructions=ddl_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
 
     # # Create the tools to bind to the model
     # tools = [convert_to_openai_function(DDLAgentResponse)]
@@ -98,18 +98,20 @@ class DDLCodeAgent:
         self.tool_executor = tool_executor
 
     def call_model(self, state):
-        messages = state['messages']
-        ddl_code = state['ddl_code']
+        messages = state.messages
+        ddl_code = state.ddl_code
+        block_schema = state.block_schema
+        messages.append(SystemMessage(content=f"Here is the Block Schema: {block_schema}"))
         response = self.model.invoke(messages)
         ddl_code = response.ddl
         wrapped_message = SystemMessage(content=str(response))
         return {"messages": messages + [wrapped_message],"ddl_code":ddl_code, "should_continue": False, "iterations":0}
     
     def call_tool(self, state):
-        messages = state["messages"]
-        block_schema = state["block_schema"]
-        block_heights = state["block_heights"]
-        js_code = state["js_code"]
+        messages = state.messages
+        block_schema = state.block_schema
+        block_heights = state.block_heights
+        js_code = state.js_code
         # We know the last message involves at least one tool call
         last_message = messages[-1]
 
@@ -143,13 +145,13 @@ class DDLCodeAgent:
         return {"messages": messages, "block_schema":block_schema, "js_code": js_code, "block_heights":block_heights}
     
     def human_review(self,state):
-        messages = state['messages']
-        ddl_code = state["ddl_code"]
+        messages = state.messages
+        ddl_code = state.ddl_code
         response=""
         while response != "yes" or response != "no":
             response = input(prompt=f"Please review the DDL Code: {ddl_code}. Is it correct? (yes/no)")
             if response == "yes":
-                return {"messages": messages, "should_continue":True}
+                return {"messages": messages, "should_continue":True,"iterations":0}
             elif response == "no":
                 feedback = input(f"Please provide feedback on the ddl code: {ddl_code}")
                 feedback += "Retry the DDL code generation with the correct schema"

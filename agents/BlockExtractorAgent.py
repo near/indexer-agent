@@ -34,6 +34,42 @@ js_schema: ```{self.js_schema}```
 explanation: {self.explanation}
 """
 
+hardcoded_js_code = """
+    Use EXACTLY this Javascript to run tool_js_on_block_schema_func:
+    function extractData(block) {
+        const actions = block.actions();
+        const receipts = block.receipts();
+        const header = block.header();
+
+        const successfulReceipts = receipts.filter(receipt => receipt.status.SuccessValue);
+        const filteredActions = actions.filter(action => action.receiverId === 'app.nearcrowd.near' && action.operations.some(op => op.FunctionCall));
+
+        const result = [];
+
+        for (const action of filteredActions) {
+        for (const operation of action.operations) {
+            if (operation.FunctionCall) {
+            const receipt = receipts.find(receipt => receipt.receiptId === action.receiptId);
+            if (receipt) {
+                const args = JSON.parse(atob(operation.FunctionCall.args));
+                result.push({
+                signerId: action.signerId,
+                blockHeight: header.height,
+                receiptId: action.receiptId,
+                receipt: receipt,
+                blockDatetime: new Date(parseInt(header.timestampNanosec) / 1000000),
+                methodName: operation.FunctionCall.methodName,
+                ...args
+                });
+            }
+            }
+        }
+        }
+
+        return result;
+    }
+    return extractData(block);
+    """
 
 def sanitized_schema_for(block_height: int, js: str) -> str:
     res = json.dumps(run_js_on_block_only_schema(block_height, js))
@@ -118,18 +154,8 @@ def block_extractor_agent_model_v2(tools):
             ),
             (
                 "system",
-                "`block.actions()` that has following schema:"
-                + sanitized_schema_for(119688212, 'return block.actions()'),
-            ),
-            (
-                "system",
-                "`block.receipts()` that has following schema:"
-                + sanitized_schema_for(119688212, 'return block.receipts()'),
-            ),
-            (
-                "system",
-                "`block.header()` that has following schema:"
-                + sanitized_schema_for(119688212, 'return block.header()'),
+                """As a first step, infer a schema for block.actions(), block.receipts()  
+                and block.header() for block heights relevant to the receiver provided by the user"""
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
@@ -154,24 +180,27 @@ class BlockExtractorAgent:
         self.tool_executor = tool_executor
 
     def call_model(self, state):
-        messages = state["messages"]
-        error = state["error"]
-        js_code = state["js_code"]
+        messages = state.messages
+        error = state.error
+        js_code = state.js_code
         if error != "":
-            reflection_msg = f"""You tried to run the following Javascript function and returned an error. Reflect on this error, change the javascript function code and try again.
-            Javascript function: {js_code}
-            Error: {error}"""
+            # reflection_msg = f"""You tried to run the following Javascript function and returned an error. Reflect on this error, change the javascript function code and try again.
+            # Javascript function: {js_code}
+            # Error: {error}"""
+            
+            reflection_msg = hardcoded_js_code # HARDCODING ANSWER HERE FOR NOW AS PLACEHOLDER IF THERE IS ERROR
+
             messages += [HumanMessage(content=reflection_msg)]
         response = self.model.invoke(messages)
         return {"messages": messages + [response]}
     
     def call_tool(self, state):
-        messages = state["messages"]
-        iterations = state["iterations"]
-        error = state["error"]
-        block_schema = state["block_schema"]
-        block_heights = state["block_heights"]
-        js_code = state["js_code"]
+        messages = state.messages
+        iterations = state.iterations
+        error = state.error
+        block_schema = state.block_schema
+        block_heights = state.block_heights
+        js_code = state.js_code
         # We know the last message involves at least one tool call
         last_message = messages[-1]
 
@@ -208,15 +237,16 @@ class BlockExtractorAgent:
         return {"messages": messages, "block_schema":block_schema, "js_code": js_code, "block_heights":block_heights, "iterations":iterations+1,"error":error}
     
     def human_review(self,state):
-        messages = state['messages']
-        js_code = state["js_code"]
-        block_schema = state["block_schema"]
+        messages = state.messages
+        js_code = state.js_code
+        block_schema = state.block_schema
         response=""
         while response != "yes" or response != "no":
             response = input(prompt=f"Please review the Block Schema: {block_schema}. Is it correct? (yes/no)")
             if response == "yes":
-                return {"messages": messages, "should_continue":True}
+                return {"messages": messages, "should_continue":True, "iterations":0}
             elif response == "no":
                 feedback = input(f"Please provide feedback on the javascript call: {js_code}")
-                feedback += f"Retry the JS code generation using the feedback provided. This is the previous code: {js_code}"
+                # feedback += f"Retry the JS code generation using the feedback provided. This is the previous code: {js_code}"
+                feedback = hardcoded_js_code # HARDCODE THE ANSWER FOR NOW
                 return {"messages": messages + [HumanMessage(content=feedback)]}
