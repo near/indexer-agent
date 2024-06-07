@@ -12,6 +12,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.messages import ToolMessage,HumanMessage
 from tools.JavaScriptRunner import run_js_on_block_only_schema
 from langchain.output_parsers import PydanticOutputParser
+from query_api_docs.examples import hardcoded_block_extractor_js
 
 class JsResponse(BaseModel):
     """Final answer to the user"""
@@ -37,43 +38,6 @@ explanation: {self.explanation}
 def sanitized_schema_for(block_height: int, js: str) -> str:
     res = json.dumps(run_js_on_block_only_schema(block_height, js))
     return res.replace('{', '{{').replace('}', '}}')
-
-def hardcoded_js(): 
-    return """
-    function extractData(block) {
-        const actions = block.actions();
-        const receipts = block.receipts();
-        const header = block.header();
-
-        const successfulReceipts = receipts.filter(receipt => receipt.status.SuccessValue);
-        const filteredActions = actions.filter(action => action.receiverId === 'app.nearcrowd.near' && action.operations.some(op => op.FunctionCall));
-
-        const result = [];
-
-        for (const action of filteredActions) {
-        for (const operation of action.operations) {
-            if (operation.FunctionCall) {
-            const receipt = receipts.find(receipt => receipt.receiptId === action.receiptId);
-            if (receipt) {
-                const args = JSON.parse(atob(operation.FunctionCall.args));
-                result.push({
-                signerId: action.signerId,
-                blockHeight: header.height,
-                receiptId: action.receiptId,
-                receipt: receipt,
-                blockDatetime: new Date(parseInt(header.timestampNanosec) / 1000000),
-                methodName: operation.FunctionCall.methodName,
-                ...args
-                });
-            }
-            }
-        }
-        }
-
-        return result;
-    }
-    return extractData(block);
-    """
 
 def block_extractor_agent_model(tools):
 
@@ -138,13 +102,12 @@ def block_extractor_agent_model_v2(tools):
                 "system",
                 '''You are a JavaScript software engineer working with NEAR Protocol. You are only writing pure
                 JS function `extractData` that accepts a block object and returns a result. You can only use standard JavaScript functions
-                and no TypeScript.
+                and no TypeScript. Do not use forEach function.
                 
                 To check if a receipt is successful, you can check whether receipt.status.SuccessValue key is present.
-                
                 To get a js_schema of the result, make sure to use a Run_Javascript_On_Block_Schema tool on 
-                sample blocks that you can get using tool_get_block_heights in then past 5 days.
-                by invoking generated JS function using `block` variable.
+                sample blocks that you can get using tool_get_block_heights in the past 5 days.
+                by invoking generated JS function using `block` variable. 
                 
                 Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
                 replaced with their escaped version (\\\\n) to make these strings valid for JSON. 
@@ -154,14 +117,16 @@ def block_extractor_agent_model_v2(tools):
             (
                 "system",
                 """As a first step, infer a schema for block.actions(), block.receipts()  
-                and block.header() for block heights relevant to the receiver provided by the user"""
+                and block.header() for block heights relevant to the receiver provided by the user
+                by calling tool_infer_schema_js. Once you have that inferred schema, then next run
+                tool_js_on_block_schema_func for sample block get the schema of the block."""
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
     ).partial(format_instructions=jsreponse_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True,)
 
     # Create the tools to bind to the model
     tools = [convert_to_openai_function(t) for t in tools]
@@ -183,11 +148,9 @@ class BlockExtractorAgent:
         error = state.error
         extract_block_data_code = state.extract_block_data_code
         if error != "":
-            # reflection_msg = f"""You tried to run the following Javascript function and returned an error. Reflect on this error, change the javascript function code and try again.
-            # Javascript function: {extract_block_data_code}
-            # Error: {error}"""
-            reflection_msg = hardcoded_js() # HARDCODING ANSWER HERE FOR NOW AS PLACEHOLDER IF THERE IS ERROR
-            print("HARDCODING ANSWER FOR EXTRACT BLOCK DATA")
+            reflection_msg = f"""You tried to run the following Javascript function and returned an error. Change the javascript function code based on the feedback.
+            Javascript function: {extract_block_data_code}
+            Error: {error}"""
             messages += [HumanMessage(content=reflection_msg)]
         response = self.model.invoke(messages)
         return {"messages": messages + [response]}
@@ -220,16 +183,21 @@ class BlockExtractorAgent:
             # Add the function message to the list
             messages.append(function_message)
 
+            # Check the name of the function message to determine the type of data it contains
             if function_message.name == 'tool_get_block_heights':
+                # If the function message is about retrieving block heights, store its content in block_heights variable
                 block_heights = function_message.content
             elif function_message.name == 'tool_js_on_block_schema_func':
+                # If the function message is related to JavaScript code on block schema functionality
                 if function_message.content.startswith("Javascript code is incorrect"):
+                    # If the content indicates an error in the JavaScript code, store the error message
                     error = function_message.content
                 else:
+                    # Otherwise, store the content as the block schema
                     block_schema = function_message.content
+                # Extract the 'arguments' field from the tool call, which contains the JavaScript parsing arguments
                 js_parse_args = tool_call['function']['arguments']
+                # Convert the JSON string in js_parse_args to a Python dictionary and retrieve the JavaScript code
                 extract_block_data_code = json.loads(js_parse_args)['js']
-
-        # We return a list, because this will get added to the existing list
-
+                
         return {"messages": messages, "block_schema":block_schema, "extract_block_data_code": extract_block_data_code, "block_heights":block_heights, "iterations":iterations+1,"error":error}

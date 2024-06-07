@@ -68,70 +68,81 @@ indexer_logic_agent_model = indexer_logic_agent_model()
 indexer_logic_agent = IndexerLogicAgent(indexer_logic_agent_model)
 
 # Define Logical Flow Functions
+
 def block_extractor_agent_router(state):
+    # Check if the block schema has been successfully extracted
     block_schema = state.block_schema
-    # If block schema is no longer null we review schema
+    # If block schema is available, proceed to the next step
     if block_schema != "":
         return "continue"
     else:
+        # If block schema is not available, repeat the extraction process
         return "repeat"
     
-def code_review_router(state,max_iter=3):
-    should_continue=state.should_continue
+def code_review_router(state, max_iter=3):
+    # Determines the next step based on code review status and iteration count
+    should_continue = state.should_continue
     iterations = state.iterations
     step, _, _ = review_step(state)
+    # If review is positive, continue the workflow
     if should_continue:
         return "continue"
-    elif iterations > 3:
+    elif iterations > max_iter:
+        # Limit the number of iterations to avoid infinite loops
+        print("Completed 3 Iterations: Exiting to avoid infinite looping.")
         return "end"
     else:
+        # If review is negative and iteration limit not reached, repeat the step
         return f"Repeat {step}"
     
-def human_review_router(state,max_iter=3):
-    # After human has reviewed, checks whether has been approved
+def human_review_router(state, max_iter=3):
+    # Manages the flow after human review, checking for approval and iteration count
     iterations = state.iterations
     should_continue = state.should_continue
     step, _, _ = review_step(state)
-    if should_continue==True:
+    # If human review is approved, proceed
+    if should_continue == True:
         return f"Completed {step}"
     elif iterations > max_iter:
+        # End the process if maximum iterations are reached
         return "end"
     else:
+        # If not approved and max iterations not reached, repeat the step
         return f"Repeat {step}"
 
 # Define Graph
 
 def create_graph():
+    # Initializes the workflow graph with various agents and review steps
     workflow = StateGraph(GraphState)
 
-    # Agent Nodes
+    # Agent Nodes - these nodes represent different agents handling specific tasks
     workflow.add_node("extract_block_data_agent", block_extractor_agent.call_model)
     workflow.add_node("table_creation_code_agent", table_creation_code_agent.call_model)
     workflow.add_node("data_upsertion_code_agent", data_upsertion_code_agent.call_model)
     workflow.add_node("indexer_logic_agent", indexer_logic_agent.call_model)
 
-    # Tool Nodes
-    workflow.add_node("tools_for_block_data_extraction",block_extractor_agent.call_tool)
+    # Tool Nodes - nodes for calling specific tools during the block data extraction process
+    workflow.add_node("tools_for_block_data_extraction", block_extractor_agent.call_tool)
 
-    # Review Nodes
-    workflow.add_node("review_agent",review_agent.call_model)
-    workflow.add_node("human_review",review_agent.human_review)
-    
+    # Review Nodes - nodes for reviewing the code automatically and manually (human review)
+    workflow.add_node("review_agent", review_agent.call_model)
+    workflow.add_node("human_review", review_agent.human_review)
 
-    # Add Edges
+    # Add Edges - defines the flow between different nodes based on the task completion
     workflow.set_entry_point("extract_block_data_agent")
     workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
     workflow.add_edge("table_creation_code_agent", "review_agent")
     workflow.add_edge("data_upsertion_code_agent", "review_agent")
     workflow.add_edge("indexer_logic_agent", "review_agent")
 
-    # Conditional Edges
+    # Conditional Edges - these edges define the flow based on conditions evaluated at runtime
     workflow.add_conditional_edges(
         "tools_for_block_data_extraction",
         block_extractor_agent_router,
         {
-            "continue":"review_agent",
-            "repeat":"extract_block_data_agent",
+            "continue": "review_agent",
+            "repeat": "extract_block_data_agent",
         }   
     )
 

@@ -31,7 +31,7 @@ def fetch_query_api_docs(directory):
 
 def data_upsertion_code_model():
     # Define the prompt for the agent
-    query_api_docs = fetch_query_api_docs('./query-api-docs')
+    query_api_docs = fetch_query_api_docs('./query_api_docs')
     prompt = ChatPromptTemplate.from_messages(
         [
             (
@@ -64,31 +64,45 @@ def data_upsertion_code_model():
     ).partial(format_instructions=DataUpsertion_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True,)
 
     model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(DataUpsertionResponse) #.bind_tools(tools)
     return model
 
+# Define a class for handling the generation of data upsertion code
 class DataUpsertionCodeAgent:
     def __init__(self, model):
+        # Initialize the agent with a model for generating code
         self.model = model
 
     def call_model(self, state):
+        # Start the process of generating data upsertion code
         print("Generating Data Upsertion Code")
-        messages = state.messages
-        table_creation_code = state.table_creation_code
-        data_upsertion_code = state.data_upsertion_code
-        extract_block_data_code = state.extract_block_data_code
-        block_schema = state.block_schema
-        iterations = state.iterations
+        # Retrieve necessary information from the state
+        messages = state.messages  # All messages exchanged in the process
+        table_creation_code = state.table_creation_code  # SQL code for creating tables
+        data_upsertion_code = state.data_upsertion_code  # Current data upsertion code (if any)
+        extract_block_data_code = state.extract_block_data_code  # JavaScript code for extracting block data
+        block_schema = state.block_schema  # Schema of the block data
+        iterations = state.iterations  # Number of iterations the process has gone through
+
         # Only take the latest messages for the agent to avoid losing context
+        # This helps in focusing on the most recent context for code generation
         upsert_messages = state.messages[(-1-iterations*2):]
-        if iterations == 0: # Only on the first time through append the system message
+
+        # On the first iteration, append a message with relevant context for the model
+        if iterations == 0:  # Check if it's the first iteration
             upsert_messages.append(HumanMessage(content=f"""Here is the relevant context code:
             Postgresql schema: {table_creation_code}
             Javascript Function: {extract_block_data_code}
             Block Schema: {block_schema}"""))
+
+        # Invoke the model with the current messages to generate/update the data upsertion code
         response = self.model.invoke(upsert_messages)
+        # Wrap the response in a system message for logging or further processing
         wrapped_message = SystemMessage(content=str(response))
+        # Update the data upsertion code with the response from the model
         data_upsertion_code = response.data_upsertion_code
-        return {"messages": messages + [wrapped_message],"data_upsertion_code": data_upsertion_code, "should_continue": False,"iterations":iterations+1}
+
+        # Return the updated state including the new data upsertion code and incremented iteration count
+        return {"messages": messages + [wrapped_message], "data_upsertion_code": data_upsertion_code, "should_continue": False, "iterations": iterations + 1}

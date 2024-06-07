@@ -29,7 +29,7 @@ def fetch_query_api_examples(directory):
     return query_api_examples.replace('{', '{{').replace('}', '}}')
 
 def indexer_logic_agent_model():
-    query_api_examples = fetch_query_api_examples('./query-api-docs/example_indexers')
+    query_api_examples = fetch_query_api_examples('./query_api_docs/example_indexers')
     # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -46,16 +46,16 @@ def indexer_logic_agent_model():
                 replaced with their escaped version (\\\\n) to make the string valid for JSON.
                 ''',
             ),
-            (
-            "system",
-            "Here are example indexer javascript code to help you:" + query_api_examples,
-            ),
+            # (
+            # "system",
+            # "Here are example indexer javascript code to help you:" + query_api_examples,
+            # ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
     ).partial(format_instructions=indexer_response_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True,)
 
     model = ({"messages": RunnablePassthrough()}
              | prompt
@@ -68,19 +68,31 @@ class IndexerLogicAgent:
     def __init__(self, model):
         self.model = model
 
+    # This method is responsible for generating the final indexer logic code.
     def call_model(self, state):
+        # Notify the user that the final indexer logic code generation is in progress
         print("Generating Final Indexer Logic code")
-        messages = state.messages
-        last_message = messages[-1] # Only use the latest 2 messages to not lose the context
-        extract_block_data_code = state.extract_block_data_code
-        data_upsertion_code = state.data_upsertion_code
-        iterations = state.iterations
-        indexer_logic = state.indexer_logic
-        new_message = HumanMessage(content=f"""
+        # Retrieve the current state information
+        messages = state.messages  # List of messages exchanged during the process
+        extract_block_data_code = state.extract_block_data_code  # JavaScript code for parsing block data
+        data_upsertion_code = state.data_upsertion_code  # JavaScript code for moving data to PostgreSQL
+        iterations = state.iterations  # Number of iterations the process has gone through
+        indexer_logic = state.indexer_logic  # Current indexer logic code (if any)
+        
+        # If this is the first iteration, add a message summarizing the JavaScript codes used so far
+        if iterations == 0:  # Check if it's the first iteration
+            new_message = HumanMessage(content=f"""
             Here is the javascript code that was used for parsing block data: {extract_block_data_code}   
             Here is the JavScript code for moving block data to that target PostgreSQL table: {data_upsertion_code}
             """)
-        response = self.model.invoke([last_message,new_message])
-        indexer_logic = response.js
+            messages.append(new_message)  # Append the new message to the messages list
+        
+        # Invoke the model with the current messages to generate/update the indexer logic code
+        response = self.model.invoke(messages)
+        indexer_logic = response.js  # Extract the JavaScript code from the response
+        
+        # Wrap the response in a system message for logging or further processing
         wrapped_message = SystemMessage(content=str(response))
-        return {"messages": messages + [wrapped_message],"indexer_logic": indexer_logic, iterations:iterations+1}
+        
+        # Return the updated state including the new indexer logic code and incremented iteration count
+        return {"messages": messages + [wrapped_message], "indexer_logic": indexer_logic, "iterations": iterations + 1}

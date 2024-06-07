@@ -81,25 +81,39 @@ def table_creation_code_model_v2():
     ).partial(format_instructions=ddl_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True,)
 
     model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(TableCreationResponse)
     return model
 
+# Define a class responsible for generating SQL code for table creation based on block schema
 class TableCreationAgent:
     def __init__(self, model):
+        # Initialize the agent with a model capable of generating SQL code
         self.model = model
 
     def call_model(self, state):
+        # Begin the process of generating table creation SQL code
         print("Generating Table Creation Code")
-        messages = state.messages
-        table_creation_code = state.table_creation_code
-        block_schema = state.block_schema
-        iterations = state.iterations
-        # Only take the latest messages for the agent to avoid losing context
+        # Extract necessary information from the state
+        messages = state.messages  # All messages exchanged in the process
+        table_creation_code = state.table_creation_code  # Current table creation code (if any)
+        block_schema = state.block_schema  # Schema of the block data
+        iterations = state.iterations  # Number of iterations the process has gone through
+
+        # Focus on the latest messages to maintain context relevance
+        # This helps in providing the model with the most recent and relevant information
         table_creation_msgs = messages[(-1-iterations*2):]
+        # Append a system message with the block schema for context
         table_creation_msgs.append(SystemMessage(content=f"Here is the Block Schema: {block_schema}"))
+
+        # Invoke the model with the current messages to generate/update the table creation code
         response = self.model.invoke(table_creation_msgs)
+        # Update the table creation code with the response from the model
         table_creation_code = response.table_creation_code
+
+        # Wrap the response in a system message for logging or further processing
         wrapped_message = SystemMessage(content=str(response))
-        return {"messages": messages + [wrapped_message],"table_creation_code":table_creation_code, "should_continue": False, "iterations":iterations+1}
+
+        # Return the updated state including the new table creation code and incremented iteration count
+        return {"messages": messages + [wrapped_message], "table_creation_code": table_creation_code, "should_continue": False, "iterations": iterations + 1}
