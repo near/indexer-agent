@@ -10,15 +10,15 @@ from langgraph.prebuilt import ToolExecutor,ToolInvocation
 from langchain_core.messages import ToolMessage,SystemMessage,HumanMessage
 from langchain.output_parsers import PydanticOutputParser
 
-class DMLResponse(BaseModel):
-    """Final DML answer to the user"""
+class DataUpsertionResponse(BaseModel):
+    """Final DataUpsertion answer to the user"""
 
-    dml: str = Field(description="The final javascript DML code that user requested")
+    data_upsertion_code: str = Field(description="The final javascript DataUpsertion code that user requested")
     explanation: str = Field(
         description="How did the agent come up with this answer?"
     )
 
-dml_parser = PydanticOutputParser(pydantic_object=DMLResponse)
+DataUpsertion_parser = PydanticOutputParser(pydantic_object=DataUpsertionResponse)
 
 def fetch_query_api_docs(directory):
     query_api_docs = ""
@@ -29,7 +29,7 @@ def fetch_query_api_docs(directory):
                     query_api_docs += f.read()
     return query_api_docs.replace('{', '{{').replace('}', '}}')
 
-def dml_code_model(tools):
+def data_upsertion_code_model():
     # Define the prompt for the agent
     query_api_docs = fetch_query_api_docs('./query-api-docs')
     prompt = ChatPromptTemplate.from_messages(
@@ -51,7 +51,7 @@ def dml_code_model(tools):
                 Utilize near-lake primitives and context.db for upserts. Context is a global variable that contains helper methods, 
                 including context.db for database interactions.
 
-                Output result in a DMLResponse format where 'dml' field should have newlines (\\n) 
+                Output result in a DataUpsertionResponse format where 'DataUpsertion' field should have newlines (\\n) 
                 replaced with their escaped version (\\\\n) to make the string valid for JavaScript.
                 '''
             ),
@@ -61,49 +61,34 @@ def dml_code_model(tools):
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
-    ).partial(format_instructions=dml_parser.get_format_instructions())
+    ).partial(format_instructions=DataUpsertion_parser.get_format_instructions())
 
     # Create the OpenAI LLM
     llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
 
-    # Create the tools to bind to the model
-    tools = [convert_to_openai_function(t) for t in tools]
-
-    model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(DMLResponse) #.bind_tools(tools)
+    model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(DataUpsertionResponse) #.bind_tools(tools)
     return model
 
-class DMLCodeAgent:
-    def __init__(self, model, tool_executor: ToolExecutor):
+class DataUpsertionCodeAgent:
+    def __init__(self, model):
         self.model = model
-        self.tool_executor = tool_executor
 
     def call_model(self, state):
+        print("Generating Data Upsertion Code")
         messages = state.messages
-        ddl_code = state.ddl_code
-        dml_code = state.dml_code
-        js_code = state.js_code
+        table_creation_code = state.table_creation_code
+        data_upsertion_code = state.data_upsertion_code
+        extract_block_data_code = state.extract_block_data_code
         block_schema = state.block_schema
         iterations = state.iterations
-        messages.append(SystemMessage(content=f"""
-            Postgresql schema: {ddl_code}
-            Javascript Function: {js_code}
+        # Only take the latest messages for the agent to avoid losing context
+        upsert_messages = state.messages[(-1-iterations*2):]
+        if iterations == 0: # Only on the first time through append the system message
+            upsert_messages.append(HumanMessage(content=f"""Here is the relevant context code:
+            Postgresql schema: {table_creation_code}
+            Javascript Function: {extract_block_data_code}
             Block Schema: {block_schema}"""))
-        response = self.model.invoke(messages)
+        response = self.model.invoke(upsert_messages)
         wrapped_message = SystemMessage(content=str(response))
-        dml_code = response.dml
-        return {"messages": messages + [wrapped_message],"dml_code": dml_code, "should_continue": False,"iterations":iterations+1}
-    
-    def human_review(self,state):
-        messages = state.messages
-        # last_tool_call = messages[-2]
-        # get_block_schema_call =  last_tool_call.additional_kwargs["tool_calls"][0]["function"]["arguments"]
-        dml_code = state.dml_code
-        error = state.error
-        response=""
-        while response != "yes" or response != "no":
-            response = input(prompt=f"Please review the DML code: {dml_code}. Is it correct? (yes/no)")
-            if response == "yes":
-                return {"messages": messages, "should_continue": True, "iterations":0}
-            elif response == "no":
-                feedback = input(f"Please provide feedback on the DML code: {dml_code}")
-                return {"messages": messages + [HumanMessage(content=feedback)], "should_continue": False}
+        data_upsertion_code = response.data_upsertion_code
+        return {"messages": messages + [wrapped_message],"data_upsertion_code": data_upsertion_code, "should_continue": False,"iterations":iterations+1}

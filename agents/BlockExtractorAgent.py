@@ -34,8 +34,12 @@ js_schema: ```{self.js_schema}```
 explanation: {self.explanation}
 """
 
-hardcoded_js_code = """
-    Use EXACTLY this Javascript to run tool_js_on_block_schema_func:
+def sanitized_schema_for(block_height: int, js: str) -> str:
+    res = json.dumps(run_js_on_block_only_schema(block_height, js))
+    return res.replace('{', '{{').replace('}', '}}')
+
+def hardcoded_js(): 
+    return """
     function extractData(block) {
         const actions = block.actions();
         const receipts = block.receipts();
@@ -70,11 +74,6 @@ hardcoded_js_code = """
     }
     return extractData(block);
     """
-
-def sanitized_schema_for(block_height: int, js: str) -> str:
-    res = json.dumps(run_js_on_block_only_schema(block_height, js))
-    return res.replace('{', '{{').replace('}', '}}')
-
 
 def block_extractor_agent_model(tools):
 
@@ -180,17 +179,15 @@ class BlockExtractorAgent:
         self.tool_executor = tool_executor
 
     def call_model(self, state):
-        print("Generating Javascript for parsing block data")
         messages = state.messages
         error = state.error
-        js_code = state.js_code
+        extract_block_data_code = state.extract_block_data_code
         if error != "":
             # reflection_msg = f"""You tried to run the following Javascript function and returned an error. Reflect on this error, change the javascript function code and try again.
-            # Javascript function: {js_code}
+            # Javascript function: {extract_block_data_code}
             # Error: {error}"""
-            
-            reflection_msg = hardcoded_js_code # HARDCODING ANSWER HERE FOR NOW AS PLACEHOLDER IF THERE IS ERROR
-
+            reflection_msg = hardcoded_js() # HARDCODING ANSWER HERE FOR NOW AS PLACEHOLDER IF THERE IS ERROR
+            print("HARDCODING ANSWER FOR EXTRACT BLOCK DATA")
             messages += [HumanMessage(content=reflection_msg)]
         response = self.model.invoke(messages)
         return {"messages": messages + [response]}
@@ -201,7 +198,7 @@ class BlockExtractorAgent:
         error = state.error
         block_schema = state.block_schema
         block_heights = state.block_heights
-        js_code = state.js_code
+        extract_block_data_code = state.extract_block_data_code
         # We know the last message involves at least one tool call
         last_message = messages[-1]
 
@@ -212,7 +209,7 @@ class BlockExtractorAgent:
                 tool_input=json.loads(tool_call["function"]["arguments"]),
                 id=tool_call["id"],
             )
-
+            print(f'Calling tool: {tool_call["function"]["name"]}')
             # We call the tool_executor and get back a response
             response = self.tool_executor.invoke(action)
             # We use the response to create a FunctionMessage
@@ -231,23 +228,8 @@ class BlockExtractorAgent:
                 else:
                     block_schema = function_message.content
                 js_parse_args = tool_call['function']['arguments']
-                js_code = json.loads(js_parse_args)['js']
+                extract_block_data_code = json.loads(js_parse_args)['js']
 
         # We return a list, because this will get added to the existing list
 
-        return {"messages": messages, "block_schema":block_schema, "js_code": js_code, "block_heights":block_heights, "iterations":iterations+1,"error":error}
-    
-    def human_review(self,state):
-        messages = state.messages
-        js_code = state.js_code
-        block_schema = state.block_schema
-        response=""
-        while response != "yes" or response != "no":
-            response = input(prompt=f"Please review the Block Schema: {block_schema}. Is it correct? (yes/no)")
-            if response == "yes":
-                return {"messages": messages, "should_continue":True, "iterations":0}
-            elif response == "no":
-                feedback = input(f"Please provide feedback on the javascript call: {js_code}")
-                # feedback += f"Retry the JS code generation using the feedback provided. This is the previous code: {js_code}"
-                feedback = hardcoded_js_code # HARDCODE THE ANSWER FOR NOW
-                return {"messages": messages + [HumanMessage(content=feedback)]}
+        return {"messages": messages, "block_schema":block_schema, "extract_block_data_code": extract_block_data_code, "block_heights":block_heights, "iterations":iterations+1,"error":error}

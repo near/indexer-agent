@@ -35,35 +35,27 @@ def indexer_logic_agent_model():
         [
             (
                 "system",
-                '''You are a JavaScript software engineer working with NEAR Protocol. Your task is to create an asynchronous function getBlock that processes blockchain data 
-                and imports it into a pre-determined SQL table. I will provide 4 pieces of information, the javascript for parsing
-                block schema, that block schema parsed, the DDL code for creating the table and the DML code for inserting data into the table.
-                You can only use standard JavaScript functions and no TypeScript. Do not omit any code or information for the final output.
+                '''You are a JavaScript software engineer working with NEAR Protocol. Your task is to combine the Javascript for parsing block schem anad the Javascript code
+                for moving data into PostgreSQL table to create JavaScript code that performs the filtering of blockchain transactions, transforming and saving the data to a database.
+                You should ONLY output JavaScript. 
                 
-                Use NEAR primitives like primitives.Block. Ensure variable names are consistent across the code. The function should:
-                - Initialize: Set up an empty array to store parsed data.
-                - Retrieve and Filter Actions: Focus on actions targeting a specified contract and filter FunctionCall operations.
-                - Upserts: Implement upsert logic to insert or update data in the SQL table from the data manipulation language.
-                - Decode and Parse Arguments: Validate and extract necessary data.
-                - Log Parsed Data: If data is found, log it along with block metadata (height and timestamp).
-                - Asynchronously Process Data: Process each piece of data asynchronously.
-                - Error Handling and Logging: Ensure robust error handling and logging.
-                Output: The result should be an IndexerResponse and should have newlines (\\n) 
+                Use standard JavaScript functions and no TypeScript. Do not omit any code or information for the final output.
+                Ensure variable names are consistent across the code. Ensure that there is robust error handling and logging.
+                
+                The result should be an IndexerResponse and should have newlines (\\n) 
                 replaced with their escaped version (\\\\n) to make the string valid for JSON.
                 ''',
             ),
-            # (
-            # "system",
-            # "Here are example indexer javascript code to help you:" + query_api_examples,
-            # ),
-            # MessagesPlaceholder(variable_name="messages", optional=True),
+            (
+            "system",
+            "Here are example indexer javascript code to help you:" + query_api_examples,
+            ),
+            MessagesPlaceholder(variable_name="messages", optional=True),
         ]
     ).partial(format_instructions=indexer_response_parser.get_format_instructions())
 
     # Create the OpenAI LLM
     llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
-
-    # Create the tools to bind to the model
 
     model = ({"messages": RunnablePassthrough()}
              | prompt
@@ -77,38 +69,18 @@ class IndexerLogicAgent:
         self.model = model
 
     def call_model(self, state):
-        print("Generating final Indexer Logic code")
+        print("Generating Final Indexer Logic code")
         messages = state.messages
-        last_message = messages[-1] # Only use the latest message to not lose the context
-        js_code = state.js_code
-        dml_code = state.dml_code
-        ddl_code = state.ddl_code
-        block_schema = state.block_schema
+        last_message = messages[-1] # Only use the latest 2 messages to not lose the context
+        extract_block_data_code = state.extract_block_data_code
+        data_upsertion_code = state.data_upsertion_code
+        iterations = state.iterations
         indexer_logic = state.indexer_logic
-        new_message = SystemMessage(content=f"""Here is the javascript code that is useful for parsing out block data: {js_code}
-            Here is the block schema that is parsed using the javascript code: {block_schema}
-            Here is the data manipulation code for inserting into the table: {dml_code}
-            Here is the data definition language for the data you will insert into postgreSQL table: {ddl_code}    
+        new_message = HumanMessage(content=f"""
+            Here is the javascript code that was used for parsing block data: {extract_block_data_code}   
+            Here is the JavScript code for moving block data to that target PostgreSQL table: {data_upsertion_code}
             """)
         response = self.model.invoke([last_message,new_message])
         indexer_logic = response.js
         wrapped_message = SystemMessage(content=str(response))
-        return {"messages": messages + [wrapped_message],"indexer_logic": indexer_logic}
-    
-    # def reflection(self, state):
-    #     messages = state.messages
-    #     iterations = state.iterations
-    #     indexer_logic = state.indexer_logic
-    #     messages.append(SystemMessage(content=f"""
-    #         Please review the following Javascript code and ensure:
-    #             1. The code is pure javascript
-    #             2. Has sufficient checks for error handling including try-catch blocks and logging errors to deal with unexpected situations
-    #             3. Properly calls NEAR primitives like primitives.Block to process blockchain data
-    #             Output: The result should be an IndexerResponse and should have newlines (\\n) 
-    #             replaced with their escaped version (\\\\n) to make the string valid for JSON.
-    #             Here is the generated Indexer Logic code: {indexer_logic}
-    #         """))
-    #     response = self.model.invoke(messages)
-    #     indexer_logic = response.js
-    #     wrapped_message = [SystemMessage(content=str(response))]
-    #     return {"messages": messages + [wrapped_message],"indexer_logic": indexer_logic, iterations:iterations+1}
+        return {"messages": messages + [wrapped_message],"indexer_logic": indexer_logic, iterations:iterations+1}
