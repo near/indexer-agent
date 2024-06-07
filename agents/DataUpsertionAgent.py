@@ -43,8 +43,12 @@ def data_upsertion_code_model():
 
                 The provided JavaScript function extracts relevant data from the blockchain block into the specificed schema. 
                 Dynamically map the parsed blockchain data to the fields specified in the given PostgreSQL schema.
-                Decode and parse the data as needed (e.g., base64 decoding). Convert function names to PascalCase when calling 
-                database functions. Do not use a for loop to insert data. Instead, map the data variables and feed them into the upsert function.
+                Decode and parse the data as needed (e.g., base64 decoding).
+                
+                If you want to insert into a table `table_name`, instead use context.db.TableName.upsert as context.db functions must use PascalCase.
+                Do not use a for loop to insert data. Instead, map the data variables and feed them into the upsert function.
+                Prepare a list of objects to be upserted into the table and use a single async upsert command to insert all the data at once. 
+                Avoid looping or mapping over the data array.
     
                 Use async/await for database interactions to handle various types of blockchain data operations such as creation, 
                 updating, and deleting records. Implement robust error handling for database operations. Log success and error messages for tracking purposes.

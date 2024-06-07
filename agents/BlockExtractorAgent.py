@@ -111,7 +111,7 @@ def block_extractor_agent_model_v2(tools):
                 
                 Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
                 replaced with their escaped version (\\\\n) to make these strings valid for JSON. 
-                Ensure that you output correct Javascript Code.
+                Ensure that you output correct Javascript Code. Always use explicit boolean statements and avoid implicit conversions.
                 ''',
             ),
             (
@@ -120,6 +120,21 @@ def block_extractor_agent_model_v2(tools):
                 and block.header() for block heights relevant to the receiver provided by the user
                 by calling tool_infer_schema_js. Once you have that inferred schema, then next run
                 tool_js_on_block_schema_func for sample block get the schema of the block."""
+            ),
+                        (
+                "system",
+                "`block.actions()` that has following schema:"
+                + sanitized_schema_for(119688212, 'return block.actions()'),
+            ),
+            (
+                "system",
+                "`block.receipts()` that has following schema:"
+                + sanitized_schema_for(119688212, 'return block.receipts()'),
+            ),
+            (
+                "system",
+                "`block.header()` that has following schema:"
+                + sanitized_schema_for(119688212, 'return block.header()'),
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
@@ -199,5 +214,5 @@ class BlockExtractorAgent:
                 js_parse_args = tool_call['function']['arguments']
                 # Convert the JSON string in js_parse_args to a Python dictionary and retrieve the JavaScript code
                 extract_block_data_code = json.loads(js_parse_args)['js']
-                
+
         return {"messages": messages, "block_schema":block_schema, "extract_block_data_code": extract_block_data_code, "block_heights":block_heights, "iterations":iterations+1,"error":error}

@@ -11,7 +11,7 @@ from langgraph.prebuilt import ToolExecutor,ToolInvocation
 from agents.BlockExtractorAgent import BlockExtractorAgent,block_extractor_agent_model_v2
 from agents.TableCreationAgent import table_creation_code_model_v2,TableCreationAgent
 from agents.DataUpsertionAgent import data_upsertion_code_model,DataUpsertionCodeAgent
-from agents.IndexerLogicAgent import indexer_logic_agent_model,IndexerLogicAgent
+# from agents.IndexerLogicAgent import indexer_logic_agent_model,IndexerLogicAgent
 from agents.ReviewAgent import review_agent_model,ReviewAgent,review_step
 from tools.NearLake import tool_get_block_heights
 from tools.JavaScriptRunner import tool_js_on_block_schema_func,tool_infer_schema_of_js
@@ -64,8 +64,8 @@ review_agent_model = review_agent_model()
 review_agent = ReviewAgent(review_agent_model)
 
 # Indexer Logic Agent
-indexer_logic_agent_model = indexer_logic_agent_model()
-indexer_logic_agent = IndexerLogicAgent(indexer_logic_agent_model)
+# indexer_logic_agent_model = indexer_logic_agent_model()
+# indexer_logic_agent = IndexerLogicAgent(indexer_logic_agent_model)
 
 # Define Logical Flow Functions
 
@@ -120,7 +120,7 @@ def create_graph():
     workflow.add_node("extract_block_data_agent", block_extractor_agent.call_model)
     workflow.add_node("table_creation_code_agent", table_creation_code_agent.call_model)
     workflow.add_node("data_upsertion_code_agent", data_upsertion_code_agent.call_model)
-    workflow.add_node("indexer_logic_agent", indexer_logic_agent.call_model)
+    # workflow.add_node("indexer_logic_agent", indexer_logic_agent.call_model)
 
     # Tool Nodes - nodes for calling specific tools during the block data extraction process
     workflow.add_node("tools_for_block_data_extraction", block_extractor_agent.call_tool)
@@ -134,7 +134,7 @@ def create_graph():
     workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
     workflow.add_edge("table_creation_code_agent", "review_agent")
     workflow.add_edge("data_upsertion_code_agent", "review_agent")
-    workflow.add_edge("indexer_logic_agent", "review_agent")
+    # workflow.add_edge("indexer_logic_agent", "review_agent")
 
     # Conditional Edges - these edges define the flow based on conditions evaluated at runtime
     workflow.add_conditional_edges(
@@ -154,7 +154,7 @@ def create_graph():
             "Repeat Extract Block Data": "extract_block_data_agent",
             "Repeat Table Creation": "table_creation_code_agent",
             "Repeat Data Upsertion": "data_upsertion_code_agent",
-            "Repeat Indexer Logic": "indexer_logic_agent",
+            # "Repeat Indexer Logic": "indexer_logic_agent",
             "end": END,
         }   
     )
@@ -165,12 +165,12 @@ def create_graph():
         {
             "Completed Extract Block Data": "table_creation_code_agent",
             "Completed Table Creation": "data_upsertion_code_agent",
-            "Completed Data Upsertion": "indexer_logic_agent",
-            "Completed Indexer Logic": END,
+            "Completed Data Upsertion": END, # "indexer_logic_agent",
+            # "Completed Indexer Logic": END,
             "Repeat Extract Block Data": "extract_block_data_agent",
             "Repeat Table Creation": "table_creation_code_agent",
             "Repeat Data Upsertion": "data_upsertion_code_agent",
-            "Repeat Indexer Logic": "indexer_logic_agent",
+            # "Repeat Indexer Logic": "indexer_logic_agent",
             "end": END,
         }   
     )

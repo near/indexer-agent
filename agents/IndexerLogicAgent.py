@@ -6,7 +6,6 @@ from langgraph.prebuilt import ToolExecutor,ToolInvocation
 from langchain_core.prompts import ChatPromptTemplate,MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.messages import ToolMessage,HumanMessage,SystemMessage
-from tools.JavaScriptRunner import run_js_on_block_only_schema
 from langchain.output_parsers import PydanticOutputParser
 
 class IndexerResponse(BaseModel):
@@ -23,33 +22,39 @@ def fetch_query_api_examples(directory):
     query_api_examples = ""
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.endswith(".js"):
+            if file.endswith(".txt"):
                 with open(os.path.join(root, file), 'r') as f:
                     query_api_examples += f.read()
     return query_api_examples.replace('{', '{{').replace('}', '}}')
 
 def indexer_logic_agent_model():
-    query_api_examples = fetch_query_api_examples('./query_api_docs/example_indexers')
+    print('fetching queryapi docs')
+    query_api_tutorials = fetch_query_api_examples('./query_api_docs/tutorials')
     # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                '''You are a JavaScript software engineer working with NEAR Protocol. Your task is to combine the Javascript for parsing block schem anad the Javascript code
-                for moving data into PostgreSQL table to create JavaScript code that performs the filtering of blockchain transactions, transforming and saving the data to a database.
-                You should ONLY output JavaScript. 
+                '''You are a JavaScript software engineer working with NEAR Protocol. Your task is to combine the Javascript for parsing block schem and the Javascript code
+                for moving data into PostgreSQL table to create 1 final JavaScript function that performs the filtering of blockchain transactions, transforming and saving the data to a database.
+                You should ONLY output JavaScript, create a function and include a line to invoke this function on a variable called block
                 
-                Use standard JavaScript functions and no TypeScript. Do not omit any code or information for the final output.
-                Ensure variable names are consistent across the code. Ensure that there is robust error handling and logging.
+                Use standard JavaScript functions and no TypeScript. Do not omit any code or information for the final output. 
+                Ensure variable names are consistent across the code, but note that the context.db functions must use PascalCase. Ensure that there is robust error handling and logging.
+                Only declare functions as async if they perform asynchronous operations using await. Optimize the code so that it does not require extraneous queries, but you do not
+                need to define the database connection.. Implement comprehensive error handling that includes retry logic for recoverable errors and specific responses for different error types.
+                Validate and verify the existence of properties in data objects before using them. Implement fallbacks or error handling for missing properties to prevent runtime errors.
+                Always use parameterized queries when interacting with databases to safeguard against SQL injection attacks. Avoid constructing queries with raw user input or template literals directly.
+                Refactor duplicate code into reusable functions or modules. 
                 
                 The result should be an IndexerResponse and should have newlines (\\n) 
                 replaced with their escaped version (\\\\n) to make the string valid for JSON.
                 ''',
             ),
-            # (
-            # "system",
-            # "Here are example indexer javascript code to help you:" + query_api_examples,
-            # ),
+            (
+                "system",
+                "Here are several tutorials from documentation on how to define indexing logic filtering blockchain transactions and saving the data to the database:" + query_api_tutorials,
+            ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
     ).partial(format_instructions=indexer_response_parser.get_format_instructions())
