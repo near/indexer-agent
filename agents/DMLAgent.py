@@ -30,77 +30,34 @@ def fetch_query_api_docs(directory):
     return query_api_docs.replace('{', '{{').replace('}', '}}')
 
 def dml_code_model(tools):
+    # Define the prompt for the agent
     query_api_docs = fetch_query_api_docs('./query-api-docs')
-    # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
                 '''
                 You are a JavaScript software engineer working with NEAR Protocol. Your task is to write a pure JavaScript function 
-                that accepts a JSON schema and PostgreSQL DDL, then generates DML for inserting data from the blockchain into the 
-                specified table.
+                that accepts a JSON schema and PostgreSQL DDL, then generates Javascript for inserting data from the blockchain into the 
+                specified table. Return only valid JavaScript code and use only standard JavaScript functions. Do not use Typescript. 
+
+                The provided JavaScript function extracts relevant data from the blockchain block into the specificed schema. 
+                Dynamically map the parsed blockchain data to the fields specified in the given PostgreSQL schema.
+                Decode and parse the data as needed (e.g., base64 decoding). Convert function names to PascalCase when calling 
+                database functions. Do not use a for loop to insert data. Instead, map the data variables and feed them into the upsert function.
+    
+                Use async/await for database interactions to handle various types of blockchain data operations such as creation, 
+                updating, and deleting records. Implement robust error handling for database operations. Log success and error messages for tracking purposes.
+                Utilize near-lake primitives and context.db for upserts. Context is a global variable that contains helper methods, 
+                including context.db for database interactions.
 
                 Output result in a DMLResponse format where 'dml' field should have newlines (\\n) 
                 replaced with their escaped version (\\\\n) to make the string valid for JavaScript.
-
-                Requirements:
-
-                Standard JavaScript Only:
-                - Do not use TypeScript.
-                - Use only standard JavaScript functions.
-                Parse Blockchain Data:
-                - Use the provided JavaScript function to extract relevant data from the blockchain block.
-                - Decode and parse the data as needed (e.g., base64 decoding).
-                Data Mapping and Upserting:
-                - Dynamically map the parsed blockchain data to the fields specified in the given PostgreSQL schema.
-                - Use async/await for database interactions.
-                - Handle various types of blockchain data operations such as creation, updating, and deleting records.
-                Error Handling and Logging:
-                - Implement robust error handling for database operations.
-                - Log success and error messages for tracking purposes.
-                NEAR Primitives and Context:
-                - Begin the script with: import * as primitives from "@near-lake/primitives";
-                - Utilize near-lake primitives and context.db for upserts.
-                - getBlock(block, context) applies your custom logic to a Block on Near and commits the data to a database.
-                - context is a global variable that contains helper methods, including context.db for database interactions.
-                ''',
+                '''
             ),
-            (
-            "system",
-            "Here is the documentation of how to build an indexer to help you plan:" + query_api_docs,
-            ),
-            MessagesPlaceholder(variable_name="messages", optional=True),
-        ]
-    ).partial(format_instructions=dml_parser.get_format_instructions())
-
-    # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, streaming=True,)
-
-    # Create the tools to bind to the model
-    tools = [convert_to_openai_function(t) for t in tools]
-
-    model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(DMLResponse) #.bind_tools(tools)
-    return model
-
-def dml_code_model_v2(tools):
-    # Define the prompt for the agent
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
             (
                 "system",
-                '''
-                You are a JavaScript software engineer working with NEAR Protocol. Your task is to write a pure JavaScript function 
-                that accepts a JSON schema and PostgreSQL DDL, then generates DML for inserting data from the blockchain into the 
-                specified table. Output only valid Javascript code.
-
-                Convert function names to PascalCase when calling database functions. Do not use a for loop to insert data. 
-                Instead, map the data variables and feed them into the upsert function.
-
-                Output result in a DMLResponse format where 'dml' field should have newlines (\\n) 
-                replaced with their escaped version (\\\\n) to make the string valid for JavaScript.
-                '''
+                "Here is the documentation of how to use context.db methods to modify data in the table which you should use:" + query_api_docs,
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
@@ -121,15 +78,16 @@ class DMLCodeAgent:
         self.tool_executor = tool_executor
 
     def call_model(self, state):
-        print("Generating DML Code")
         messages = state.messages
         ddl_code = state.ddl_code
         dml_code = state.dml_code
         js_code = state.js_code
+        block_schema = state.block_schema
         iterations = state.iterations
         messages.append(SystemMessage(content=f"""
             Postgresql schema: {ddl_code}
-            Javascript Function: {js_code}"""))
+            Javascript Function: {js_code}
+            Block Schema: {block_schema}"""))
         response = self.model.invoke(messages)
         wrapped_message = SystemMessage(content=str(response))
         dml_code = response.dml
