@@ -121,6 +121,7 @@ class DMLCodeAgent:
         self.tool_executor = tool_executor
 
     def call_model(self, state):
+        print("Generating DML Code")
         messages = state.messages
         ddl_code = state.ddl_code
         dml_code = state.dml_code

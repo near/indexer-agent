@@ -98,6 +98,7 @@ class DDLCodeAgent:
         self.tool_executor = tool_executor
 
     def call_model(self, state):
+        print("Generating DDL Code")
         messages = state.messages
         ddl_code = state.ddl_code
         block_schema = state.block_schema

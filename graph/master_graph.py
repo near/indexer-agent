@@ -11,6 +11,7 @@ from langgraph.prebuilt import ToolExecutor,ToolInvocation
 from agents.BlockExtractorAgent import BlockExtractorAgent,block_extractor_agent_model_v2
 from agents.DDLAgent import ddl_code_model_v2,DDLCodeAgent
 from agents.DMLAgent import dml_code_model,dml_code_model_v2,DMLCodeAgent
+from agents.IndexerLogicAgent import indexer_logic_agent_model,IndexerLogicAgent
 from tools.NearLake import tool_get_block_heights
 from tools.JavaScriptRunner import tool_js_on_block_schema_func,tool_infer_schema_of_js
 
@@ -37,6 +38,7 @@ class GraphState(BaseModel):
     js_code: str = Field(description="Javascript code used to extract block schema from blocks")
     ddl_code: str = Field(description="Data definition language used to create tables in PostgreSQL")
     dml_code: str = Field(description="Data manipulation language in Javascript used to insert data into tables using context.db")
+    indexer_logic: str = Field(description="Final Javascript code used to load data into postgresql database from the blockchain")
     iterations: int = Field(description="Number of tries to generate the code")
     error: str = Field(description="Error message if any returned after attempting to execute code")
     should_continue: bool = Field(description="Boolean used to decide whether or not to continue to next step")
@@ -58,6 +60,10 @@ dml_tools = []
 # dml_code_agent_model = dml_code_model(dml_tools)  # uses documentation
 dml_code_agent_model = dml_code_model_v2(dml_tools) #v2 no documentation
 dml_code_agent = DMLCodeAgent(dml_code_agent_model,ToolExecutor(dml_tools))
+
+# Indexer Logic Agent
+indexer_logic_agent_model = indexer_logic_agent_model()
+indexer_logic_agent = IndexerLogicAgent(indexer_logic_agent_model)
 
 # Define Logical Flow Functions
 def agent_tool_router(state,max_iter=3):
@@ -108,6 +114,7 @@ def create_graph():
     workflow.add_node("extract_block_data_agent", block_extractor_agent.call_model)
     workflow.add_node("ddl_code_agent", ddl_code_agent.call_model)
     workflow.add_node("dml_code_agent", dml_code_agent.call_model)
+    workflow.add_node("indexer_logic_agent", indexer_logic_agent.call_model) 
 
     # Tool Nodes
     workflow.add_node("tools_for_block_data_extraction",block_extractor_agent.call_tool)
@@ -123,6 +130,7 @@ def create_graph():
     workflow.set_entry_point("extract_block_data_agent")
     workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
     workflow.add_edge("dml_code_agent", "review_dml_code")
+    workflow.add_edge("indexer_logic_agent", END)
 
     # Conditional Edges
     workflow.add_conditional_edges(
@@ -164,7 +172,7 @@ def create_graph():
         "review_dml_code",
         human_review_router,
         {
-            "continue": END, # TO UPDATE
+            "continue": "indexer_logic_agent",
             "repeat": "dml_code_agent",
             "end": END,
         }

@@ -180,6 +180,7 @@ class BlockExtractorAgent:
         self.tool_executor = tool_executor
 
     def call_model(self, state):
+        print("Generating Javascript for parsing block data")
         messages = state.messages
         error = state.error
         js_code = state.js_code
