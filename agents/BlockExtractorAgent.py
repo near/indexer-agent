@@ -1,5 +1,5 @@
 import json
-
+import ast
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.utils.function_calling import convert_to_openai_function
@@ -111,30 +111,101 @@ def block_extractor_agent_model_v2(tools):
                 
                 Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
                 replaced with their escaped version (\\\\n) to make these strings valid for JSON. 
-                Ensure that you output correct Javascript Code. Always use explicit boolean statements and avoid implicit conversions.
+                Ensure that you output correct Javascript Code.
+                 
+                Use the below best practices:
+                 
+                1. Always use explicit boolean statements and avoid implicit conversions.
+                2. Use array methods such as flatMap, map, and filter to efficiently transform and filter blockchain actions. These methods help create concise and expressive code, making it easier to manage and understand the flow of data processing.
+                3. Implement thorough error handling and logging throughout your code. This practice is crucial for debugging and maintaining the application. By catching potential errors and logging them, you ensure that issues can be diagnosed and resolved without causing unexpected crashes.
+                4. Validate the structure and content of data before processing it. This step is essential to ensure that the data meets the expected format and to prevent runtime errors. Proper data validation helps maintain data integrity and ensures that only the correct data is processed.
+                5. Use asynchronous functions (async/await) to handle input/output operations, such as fetching data from the blockchain or interacting with a database. Asynchronous processing keeps the application responsive and allows it to handle multiple tasks concurrently without blocking the execution flow.
+                6. Encapsulate specific functionalities into separate functions. This modular approach improves the readability and maintainability of your code. By breaking down complex processes into smaller, manageable functions, you make the code easier to test, debug, and extend.
                 ''',
             ),
             (
                 "system",
-                """As a first step, infer a schema for block.actions(), block.receipts()  
-                and block.header() for block heights relevant to the receiver provided by the user
-                by calling tool_infer_schema_js. Once you have that inferred schema, then next run
-                tool_js_on_block_schema_func for sample block get the schema of the block."""
+                '''Note the following schema for each block that will be useful for parsing out the data:
+                `block.actions()` that has following schema:
+                `{"type": "array", "items": {"type": "object", "properties": {"receiptId": {"type": "string"}, "predecessorId": {"type": "string"}, "receiverId": {"type": "string"}, "signerId": {"type": "string"}, "signerPublicKey": {"type": "string"}, "operations": {"type": "array", "items": {"type": "object", "properties": {"Delegate": {"type": "object", "properties": {"delegateAction": {"type": "object", "properties": {"actions": {"type": "array", "items": {"type": "object", "properties": {"FunctionCall": {"type": "object", "properties": {"args": {"type": "string"}, "deposit": {"type": "string"}, "gas": {"type": "integer"}, "methodName": {"type": "string"}}}}}}, "maxBlockHeight": {"type": "integer"}, "nonce": {"type": "integer"}, "publicKey": {"type": "string"}, "receiverId": {"type": "string"}, "senderId": {"type": "string"}}}, "signature": {"type": "string"}}}}}}}}}`
+                `block.receipts()` that has the following schema:
+                `{"type": "array", "items": {"type": "object", "properties": {"receiptKind": {"type": "string"}, "receiptId": {"type": "string"}, "receiverId": {"type": "string"}, "predecessorId": {"type": "string"}, "status": {"type": "object", "properties": {"SuccessValue": {"type": "string"}}}, "executionOutcomeId": {"type": "string"}, "logs": {"type": "array"}}}}`
+                `block.header()` that has following schema:
+                `{"type": "object", "properties": {"height": {"type": "integer"}, "hash": {"type": "string"}, "prevHash": {"type": "string"}, "author": {"type": "string"}, "timestampNanosec": {"type": "string"}, "epochId": {"type": "string"}, "nextEpochId": {"type": "string"}, "gasPrice": {"type": "string"}, "totalSupply": {"type": "string"}, "latestProtocolVersion": {"type": "integer"}, "randomValue": {"type": "string"}, "chunksIncluded": {"type": "integer"}, "validatorProposals": {"type": "array"}}}`
+            
+                You will need to run multiple tool steps, after each step return the output and think about what to do next.
+                1. Use the tool get_block_heights to pull the list of relevant block heights depending on the input receiver provided by the user.
+                2. Use tool_infer_schema to generate a schema across block.actions(), block.receipts() and block.header() for block heights in the list.
+                3. Run tool_js_on_block_schema_func for a sample block (use the first in the list from step 1) to return a sample schema of the block and show that the code is working.
+                '''.replace('{','{{').replace('}','}}')
             ),
-                        (
+            MessagesPlaceholder(variable_name="messages", optional=True),
+        ]
+    ).partial(format_instructions=jsreponse_parser.get_format_instructions())
+
+    # Create the OpenAI LLM
+    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True,)
+
+    # Create the tools to bind to the model
+    tools = [convert_to_openai_function(t) for t in tools]
+
+    model = ({"messages": RunnablePassthrough()}
+             | prompt
+             | llm.bind_tools(tools, tool_choice="any")
+             )
+
+    return model
+
+def block_extractor_agent_model_v3(tools):
+
+    # Define the prompt for the agent
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
                 "system",
-                "`block.actions()` that has following schema:"
-                + sanitized_schema_for(119688212, 'return block.actions()'),
+                '''You are a JavaScript software engineer working with NEAR Protocol. Your job is to run Javascript functions that accept a block
+                and returns results. You will be supplied specific receiver and block_heights, and your job is to parse through them to identify
+                what sorts of entities we would like to create for our data indexer.
+                
+                Output results in JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
+                replaced with their escaped version (\\\\n) to make these strings valid for JSON. 
+                Ensure that you output correct Javascript Code using best practices:
+                1. Always use explicit boolean statements and avoid implicit conversions.
+                2. Use array methods such as flatMap, map, and filter to efficiently transform and filter blockchain actions. These methods help create concise and expressive code, making it easier to manage and understand the flow of data processing.
+                3. Implement thorough error handling and logging throughout your code. This practice is crucial for debugging and maintaining the application. By catching potential errors and logging them, you ensure that issues can be diagnosed and resolved without causing unexpected crashes.
+                4. Validate the structure and content of data before processing it. This step is essential to ensure that the data meets the expected format and to prevent runtime errors. Proper data validation helps maintain data integrity and ensures that only the correct data is processed.
+                5. Use asynchronous functions (async/await) to handle input/output operations, such as fetching data from the blockchain or interacting with a database. Asynchronous processing keeps the application responsive and allows it to handle multiple tasks concurrently without blocking the execution flow.
+                6. Encapsulate specific functionalities into separate functions. This modular approach improves the readability and maintainability of your code. By breaking down complex processes into smaller, manageable functions, you make the code easier to test, debug, and extend.
+                ''',
             ),
             (
                 "system",
-                "`block.receipts()` that has following schema:"
-                + sanitized_schema_for(119688212, 'return block.receipts()'),
-            ),
-            (
-                "system",
-                "`block.header()` that has following schema:"
-                + sanitized_schema_for(119688212, 'return block.header()'),
+                '''Note the following schema for each block that will be useful for parsing out the data:
+                `block.actions()` that has following schema:
+                `{"type": "array", "items": {"type": "object", "properties": {"receiptId": {"type": "string"}, "predecessorId": {"type": "string"}, "receiverId": {"type": "string"}, "signerId": {"type": "string"}, "signerPublicKey": {"type": "string"}, "operations": {"type": "array", "items": {"type": "object", "properties": {"Delegate": {"type": "object", "properties": {"delegateAction": {"type": "object", "properties": {"actions": {"type": "array", "items": {"type": "object", "properties": {"FunctionCall": {"type": "object", "properties": {"args": {"type": "string"}, "deposit": {"type": "string"}, "gas": {"type": "integer"}, "methodName": {"type": "string"}}}}}}, "maxBlockHeight": {"type": "integer"}, "nonce": {"type": "integer"}, "publicKey": {"type": "string"}, "receiverId": {"type": "string"}, "senderId": {"type": "string"}}}, "signature": {"type": "string"}}}}}}}}}`
+                `block.receipts()` that has the following schema:
+                `{"type": "array", "items": {"type": "object", "properties": {"receiptKind": {"type": "string"}, "receiptId": {"type": "string"}, "receiverId": {"type": "string"}, "predecessorId": {"type": "string"}, "status": {"type": "object", "properties": {"SuccessValue": {"type": "string"}}}, "executionOutcomeId": {"type": "string"}, "logs": {"type": "array"}}}}`
+                `block.header()` that has following schema:
+                `{"type": "object", "properties": {"height": {"type": "integer"}, "hash": {"type": "string"}, "prevHash": {"type": "string"}, "author": {"type": "string"}, "timestampNanosec": {"type": "string"}, "epochId": {"type": "string"}, "nextEpochId": {"type": "string"}, "gasPrice": {"type": "string"}, "totalSupply": {"type": "string"}, "latestProtocolVersion": {"type": "integer"}, "randomValue": {"type": "string"}, "chunksIncluded": {"type": "integer"}, "validatorProposals": {"type": "array"}}}`
+
+                You will need to run multiple tool steps, after each step return the output and think about what to do next.
+                1. Use the tool get_block_heights to pull the list of relevant block heights depending on the input receiver provided by the user.
+                2. Filter block.actions() down to receiver and call tool_infer_schema_of_js using all block_heights from step 1. Also add all fields from args that are decoded from base64-encoded.
+                '''.replace('{','{{').replace('}','}}')
+                #  tool_get_method_names to return a list of available method_names for that receiver
+                # Here is an example of how you should attempt to parse block actions
+                # block.actions
+                #     .filter(a => a.receiverId === receiver)
+                #     .flatMap(a => a.operations
+                #         .map(op => op.FunctionCall)
+                #     )
+                #     .map(fc => {
+                #         return {
+                #             ...fc,
+                #             args: base64decode(fc.args)
+                #             <ADD ADDITIONAL FIELDS LIKE receiptID>
+                #         };
+                #     });
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
@@ -201,8 +272,11 @@ class BlockExtractorAgent:
             # Check the name of the function message to determine the type of data it contains
             if function_message.name == 'tool_get_block_heights':
                 # If the function message is about retrieving block heights, store its content in block_heights variable
-                block_heights = function_message.content
-            elif function_message.name == 'tool_js_on_block_schema_func':
+                try:
+                    block_heights = ast.literal_eval(function_message.content)
+                except (ValueError, SyntaxError):
+                    block_heights = []
+            elif function_message.name == 'tool_js_on_block_schema_func' or function_message.name == 'tool_infer_schema_of_js':
                 # If the function message is related to JavaScript code on block schema functionality
                 if function_message.content.startswith("Javascript code is incorrect"):
                     # If the content indicates an error in the JavaScript code, store the error message
