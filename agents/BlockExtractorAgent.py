@@ -1,5 +1,5 @@
 import json
-
+import ast
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.utils.function_calling import convert_to_openai_function
@@ -201,7 +201,10 @@ class BlockExtractorAgent:
             # Check the name of the function message to determine the type of data it contains
             if function_message.name == 'tool_get_block_heights':
                 # If the function message is about retrieving block heights, store its content in block_heights variable
-                block_heights = function_message.content
+                try:
+                    block_heights = ast.literal_eval(function_message.content)
+                except (ValueError,SyntaxError):
+                    block_heights = []
             elif function_message.name == 'tool_js_on_block_schema_func':
                 # If the function message is related to JavaScript code on block schema functionality
                 if function_message.content.startswith("Javascript code is incorrect"):

@@ -126,6 +126,23 @@ return {func_name}(block)"""
     return run_js_on_block_only_schema(block_height, code)
 
 
+@tool
+def tool_get_block_heights(receiver: str, from_days_ago:int,limit:int) -> [int]:
+    """
+    Get list ob block heights for a given receiver id over 'from_days_ago' days
+    To use it, pass the receiver_id, the number of days previous, and limit of blocks
+
+    Parameters:
+    receiver (int): receiver smart contract for the exact match
+    from_days_ago (int): The code of a Javascript function to run on a block.
+    limit (int): the limit in number of block heights to return
+
+    Returns:
+    [int]: List of block heights.
+    """    
+    return get_block_heights(receiver, from_days_ago, limit)
+
+
 tool_js_on_block = StructuredTool.from_function(
     func=run_js_on_block,
     name="Run_Javascript_On_Block",
