@@ -18,6 +18,13 @@ Initial POC of Indexer Agent utilizing LangChain's [Langgraph](https://python.la
     LANGCHAIN_API_KEY=<LANGCHAIN_API_KEY>  
     LANGCHAIN_PROJECT=<LANGCHAIN_PROJECT>  
 ```
+- When setting up postgresql to run locally follow these steps
+brew install postgresql
+brew services start postgresql
+psql postgres
+CREATE ROLE username WITH LOGIN PASSWORD 'password';
+CREATE DATABASE db OWNER username;
+GRANT ALL PRIVILEGES ON DATABASE db TO username;
 
 ## Structure
 Below is a brief overview of the key files and directories within the Indexer Agent project:

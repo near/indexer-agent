@@ -13,6 +13,7 @@ from agents.TableCreationAgent import table_creation_code_model_v2,TableCreation
 from agents.DataUpsertionAgent import data_upsertion_code_model,DataUpsertionCodeAgent
 # from agents.IndexerLogicAgent import indexer_logic_agent_model,IndexerLogicAgent
 from agents.ReviewAgent import review_agent_model,ReviewAgent,review_step
+from tools.database import tool_run_sql_ddl
 from tools.NearLake import tool_get_block_heights
 from tools.JavaScriptRunner import tool_js_on_block_schema_func,tool_infer_schema_of_js
 
@@ -51,9 +52,10 @@ block_extractor_tools = [tool_js_on_block_schema_func, tool_infer_schema_of_js]
 block_extractor_model = block_extractor_agent_model_v2(block_extractor_tools) # v2 adds the jsresponse parser to prompt
 block_extractor_agent = BlockExtractorAgent(block_extractor_model,ToolExecutor(block_extractor_tools))
 
-# TableCreation Agent
-table_creation_code_agent_model = table_creation_code_model_v2()
-table_creation_code_agent = TableCreationAgent(table_creation_code_agent_model)
+# Table Creation Agent
+table_creation_tools = [tool_run_sql_ddl]
+table_creation_code_agent_model = table_creation_code_model_v2(table_creation_tools)
+table_creation_code_agent = TableCreationAgent(table_creation_code_agent_model,ToolExecutor(table_creation_tools))
 
 # DataUpsertion Agent
 data_upsertion_code_agent_model = data_upsertion_code_model() #v2 no documentation

@@ -1,8 +1,10 @@
+genson
 langchain
 langsmith
 langgraph
 langchain_openai
-python-dotenv
-genson
 openai
 numpy
+psycopg2
+python-dotenv
+sqlalchemy
