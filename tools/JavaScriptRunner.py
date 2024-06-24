@@ -73,8 +73,9 @@ def infer_schema_of_js(receiver: str, js: str, from_days_ago=100, limit=10, bloc
         new_schema = schema_builder.to_json(indent=2)
         if cur_schema != new_schema:
             cur_schema = new_schema
-        else:
-            return generate_schema(cur_schema)
+        # else:
+        #     return generate_schema(cur_schema)
+    return cur_schema
 
 
 @tool

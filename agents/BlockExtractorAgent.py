@@ -190,13 +190,58 @@ def block_extractor_agent_model_v3(tools):
 
                 You will need to run multiple tool steps, after each step return the output and think about what to do next.
                 1. Use the tool get_block_heights to pull the list of relevant block heights depending on the input receiver provided by the user.
-                2. Filter block.actions() down to receiver and call tool_infer_schema_of_js using all block_heights from step 1. Also add all fields from args that are decoded from base64-encoded.
+                2. Filter block.actions() down to receiver and call tool_infer_schema_of_js on all block_heights from step 1. Also add all fields from args that are decoded from base64-encoded.
+
                 '''.replace('{','{{').replace('}','}}')
-                #  tool_get_method_names to return a list of available method_names for that receiver
-                # Here is an example of how you should attempt to parse block actions
+            ),
+            (
+                "human",
+                '''
+                instructions for parsing out a block when using tool_infer_schema_of_js
+                1. Extract Actions from the Block: Call block.actions() to retrieve the actions included in the block. Check if there are any actions. If not, log a message and exit.
+                2. Filter Actions by Receiver: Filter the actions to include only those where receiverId matches the target contract (e.g., social.near). If no contract-specific actions are found, log a message and exit.
+                3. Process Actions: Perform a flatMap operation on the filtered actions to transform and flatten the results. Use map to extract FunctionCall operations from each action.
+                4. (optional) Filter Function Calls: Filter the FunctionCall operations to include only those with the specific method name (e.g., set).
+                5. Decode arguments: Use base64decode to decode the arguments of each FunctionCall operation.
+                '''
+            ),
+            (
+                "ai", 
+                '''
+                Here is an example of how to attempt to parse block actions while decoding base64 arguments:
+                
+                function base64decode(encodedValue) {
+                    let buff = Buffer.from(encodedValue, "base64");
+                    return JSON.parse(buff.toString("utf-8"));
+                }
+
+                let decodedActions = block.actions().filter(action => action.receiverId === '"""+ receiver+"""')
+                    .map(action => {
+                        let updatedAction = { ...action, operations: action.operations.map(op => {
+                            if (op.FunctionCall) {
+                                try {
+                                    let updatedFunctionCall = { ...op.FunctionCall };
+                                    updatedFunctionCall.args = base64decode(op.FunctionCall.args);
+                                    return { ...op, FunctionCall: updatedFunctionCall }; 
+                                } catch (error) {
+                                    return op;
+                                }
+                            }
+                            return op;
+                        })};
+                        return updatedAction;
+                    });
+                return decodedActions
+
+                Here is an example of how to attempt to parse block receipts that are successful:
+                block.receipts()
+                    .filter(action => action.status.SuccessValue !== undefined)
+                    .filter(action => action.receiverId === '"""+receiver+"""')
+                '''.replace('{','{{').replace('}','}}')
+
                 # block.actions
-                #     .filter(a => a.receiverId === receiver)
-                #     .flatMap(a => a.operations
+                #     .filter(action => action.receiverId === receiver)
+                #     .flatMap(action => action.operations
                 #         .map(op => op.FunctionCall)
                 #     )
                 #     .map(fc => {
