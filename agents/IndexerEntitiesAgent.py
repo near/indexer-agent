@@ -30,7 +30,7 @@ def fetch_query_api_examples(directory):
                     query_api_examples += f.read()
     return query_api_examples.replace('{', '{{').replace('}', '}}')
 
-def indexer_logic_agent_model():
+def indexer_entities_agent_model():
     print('fetching queryapi docs')
     query_api_tutorials = fetch_query_api_examples('./query_api_docs/tutorials')
     # Define the prompt for the agent
@@ -66,7 +66,7 @@ def indexer_logic_agent_model():
 
     return model
 
-class IndexerLogicAgent:
+class IndexerEntitiesAgent:
     def __init__(self, model):
         self.model = model
 
@@ -76,24 +76,23 @@ class IndexerLogicAgent:
         print("Identify key entities")
         # Retrieve the current state information
         messages = state.messages  # List of messages exchanged during the process
-        extract_block_data_code = state.extract_block_data_code  # JavaScript code for parsing block data
-        block_schema = state.block_schema 
+        entity_schema = state.entity_schema 
         iterations = state.iterations  # Number of iterations the process has gone through
-        indexer_logic = state.indexer_logic  # Current indexer logic code (if any)
+        indexer_entities_description = state.indexer_entities_description  # Current indexer logic code (if any)
         
         # If this is the first iteration, add a message summarizing the JavaScript codes used so far
         if iterations == 0:  # Check if it's the first iteration
             new_message = SystemMessage(content=f"""
-            Here is the schema parsed out from blocks: {block_schema}
+            Here is the schema parsed out from blocks: {entity_schema}
             """)
             messages.append(new_message)  # Append the new message to the messages list
         
         # Invoke the model with the current messages to generate/update the indexer logic code
         response = self.model.invoke(messages)
-        indexer_logic = f"List of entities: {response.entities}. Entity specific data: {response.data}"  # Extract the JavaScript code from the response
+        indexer_entities_description = f"List of entities: {response.entities}. Entity specific data: {response.data}"  # Extract the JavaScript code from the response
         
         # Wrap the response in a system message for logging or further processing
         wrapped_message = SystemMessage(content=str(response))
         
         # Return the updated state including the new indexer logic code and incremented iteration count
-        return {"messages": messages + [wrapped_message], "indexer_logic": indexer_logic, "iterations": iterations + 1}
+        return {"messages": messages + [wrapped_message], "indexer_entities_description": indexer_entities_description, "iterations": iterations + 1, "should_continue":True}

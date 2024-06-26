@@ -367,10 +367,10 @@ class BlockExtractorAgent:
     def call_model(self, state):
         messages = state.messages
         error = state.error
-        extract_block_data_code = state.extract_block_data_code
+        block_data_extraction_code = state.block_data_extraction_code
         if error != "":
             reflection_msg = f"""You tried to run the following Javascript function and returned an error. Change the javascript function code based on the feedback.
-            Javascript function: {extract_block_data_code}
+            Javascript function: {block_data_extraction_code}
             Error: {error}"""
             messages += [HumanMessage(content=reflection_msg)]
         response = self.model.invoke(messages)
@@ -380,9 +380,9 @@ class BlockExtractorAgent:
         messages = state.messages
         iterations = state.iterations
         error = state.error
-        block_schema = state.block_schema
+        entity_schema = state.entity_schema
         block_heights = state.block_heights
-        extract_block_data_code = state.extract_block_data_code
+        block_data_extraction_code = state.block_data_extraction_code
         # We know the last message involves at least one tool call
         last_message = messages[-1]
 
@@ -412,17 +412,17 @@ class BlockExtractorAgent:
                 except (ValueError, SyntaxError):
                     block_heights = []
             elif function_message.name == 'tool_js_on_block_schema_func' or function_message.name == 'tool_infer_schema_of_js':
-                # If the function message is related to JavaScript code on block schema functionality
+                # If the function message is related to JavaScript code on entity schema functionality
                 if function_message.content.startswith("Javascript code is incorrect"):
                     # If the content indicates an error in the JavaScript code, store the error message
                     error = function_message.content
                 else:
-                    # Otherwise, store the content as the block schema
-                    block_schema = function_message.content
+                    # Otherwise, store the content as the entity schema
+                    entity_schema = function_message.content
                 # Extract the 'arguments' field from the tool call, which contains the JavaScript parsing arguments
                 js_parse_args = tool_call['function']['arguments']
                 # Convert the JSON string in js_parse_args to a Python dictionary and retrieve the JavaScript code
-                extract_block_data_code = json.loads(js_parse_args)['js']
+                block_data_extraction_code = json.loads(js_parse_args)['js']
                 iterations += 1
 
-        return {"messages": messages, "block_schema":block_schema, "extract_block_data_code": extract_block_data_code, "block_heights":block_heights, "iterations":iterations,"error":error}
+        return {"messages": messages, "entity_schema":entity_schema, "block_data_extraction_code": block_data_extraction_code, "block_heights":block_heights, "iterations":iterations,"error":error}

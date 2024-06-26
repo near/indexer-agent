@@ -24,8 +24,8 @@ def review_step(state):
     review_mappings = [
         ("Data Upsertion", state.data_upsertion_code, "JavaScript"),
         ("Table Creation", state.table_creation_code, "PostgreSQL"),
-        ("Indexer Logic", state.indexer_logic, "N/A"),
-        ("Extract Block Data", state.extract_block_data_code, "JavaScript")
+        ("Indexer Entities", state.indexer_entities_description, "Entities Description"),
+        ("Extract Block Data", state.block_data_extraction_code, "JavaScript")
     ]
     
     for step, code, code_type in review_mappings:
@@ -87,9 +87,9 @@ class ReviewAgent:
         # Extract relevant information from the state
         messages = state.messages
         iterations = state.iterations
-        extract_block_data_code = state.extract_block_data_code
+        block_data_extraction_code = state.block_data_extraction_code
         error = state.error
-        block_schema = state.block_schema
+        entity_schema = state.entity_schema
         # Determine the current step, the code to review, and its type
         step, code, code_type = review_step(state)
         # Create a new message prompting for review of the code
@@ -125,18 +125,18 @@ class ReviewAgent:
         wrapped_message = SystemMessage(content=str(response))
 
         # Return the updated state including the decision on whether to continue
-        return {"messages": messages + [wrapped_message],"should_continue": should_continue, "extract_block_data_code":extract_block_data_code,"block_schema":block_schema, "error":error,"iterations":iterations}
+        return {"messages": messages + [wrapped_message],"should_continue": should_continue, "block_data_extraction_code":block_data_extraction_code,"entity_schema":entity_schema, "error":error,"iterations":iterations}
     
     def human_review(self,state):
         # Method for manual human review of the code
         step, code, code_type = review_step(state)
         messages = state.messages
-        block_schema = state.block_schema
+        entity_schema = state.entity_schema
         response = ""
         # Prompt for human review until a valid response ('yes' or 'no') is received
         if step == "Extract Block Data":
-            # Print the block schema for reference during review
-            print(f"Block Schema: {block_schema}")
+            # Print the entity schema for reference during review
+            print(f"Entity Schema: {entity_schema}")
         while response != "yes" or response != "no":
             response = input(prompt=f"Please review the {step}: {code}. Is it correct? (yes/no)")
             if response == "yes":
@@ -144,5 +144,5 @@ class ReviewAgent:
                 return {"messages": messages, "should_continue":True, "iterations":0}
             elif response == "no":
                 # If the code is incorrect, prompt for feedback and do not continue
-                feedback = input(f"Please provide feedback on the {code_type} code: {code}")
+                feedback = input(f"Please provide feedback on the {code_type}: {code}")
                 return {"messages": messages + [HumanMessage(content=feedback)], "should_continue":False, "iterations":0}

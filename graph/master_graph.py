@@ -8,10 +8,10 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolExecutor,ToolInvocation
 
 # Local Imports
-from agents.BlockExtractorAgent import BlockExtractorAgent,block_extractor_agent_model_v2
+from agents.BlockExtractorAgent import BlockExtractorAgent,block_extractor_agent_model_v3
 from agents.TableCreationAgent import table_creation_code_model_v2,TableCreationAgent
 from agents.DataUpsertionAgent import data_upsertion_code_model,DataUpsertionCodeAgent
-from agents.IndexerLogicAgent import indexer_logic_agent_model,IndexerLogicAgent,EntityResponse
+from agents.IndexerEntitiesAgent import indexer_entities_agent_model,IndexerEntitiesAgent,EntityResponse
 from agents.ReviewAgent import review_agent_model,ReviewAgent,review_step
 from tools.NearLake import tool_get_block_heights
 from tools.JavaScriptRunner import tool_js_on_block_schema_func,tool_infer_schema_of_js
@@ -23,24 +23,26 @@ class GraphState(BaseModel):
 
     Attributes:
         messages: With user questions, tracking plans, reasoning
+        original_prompt: Original prompt of the beginning of the workflow
         block_heights: Block heights of the blocks to be parsed
-        extract_block_data_code: Javascript code to be run on block schema
-        block_schema: Extracted block schema from json of blocks 
+        block_data_extraction_code: Javascript code used to extract entity schema from blocks
+        entity_schema: Extracted entity schema derived from parsing data from blocks
         table_creation_code: Data Definition Language code for creating tables
         data_upsertion_code: Data manipulation language code for inserting data using context.db
         iterations: Number of tries to generate the code
-        indexer_logic: Final list of entities that we should design the indexer to track
+        indexer_entities_description: Description of entities the indexer is meant to track, including specific data and reasoning for each
         error: error message if any
         should_continue: Binary flag for control flow to indicate whether to continue or not
     """
 
     messages: Sequence[BaseMessage] = Field(description="List of messages that track history interacting with agents")
+    original_prompt: str = Field(description = "Prompt of the beginning of the workflow")
     block_heights: Sequence[int] = Field(description="Block heights of the blocks to be parsed")
-    block_schema: str = Field(description="Extracted block schema from blocks")
-    extract_block_data_code: str = Field(description="Javascript code used to extract block schema from blocks")
+    entity_schema: str = Field(description="Extracted entity schema derived from parsing data from blocks")
+    block_data_extraction_code: str = Field(description="Javascript code used to extract entity schema from blocks")
     table_creation_code: str = Field(description="Data definition language used to create tables in PostgreSQL")
     data_upsertion_code: str = Field(description="Data manipulation language in Javascript used to insert data into tables using context.db")
-    indexer_logic: str = Field(description="Final list of entities that we should design the indexer to track, along with specific data and reasoning for each")
+    indexer_entities_description: str = Field(description="Description of entities the indexer is meant to track, including specific data and reasoning for each")
     iterations: int = Field(description="Number of tries to generate the code")
     error: str = Field(description="Error message if any returned after attempting to execute code")
     should_continue: bool = Field(description="Boolean used to decide whether or not to continue to next step")
@@ -49,8 +51,12 @@ class GraphState(BaseModel):
 # Load agents & tools
 # Block Extractor Agent
 block_extractor_tools = [tool_js_on_block_schema_func, tool_infer_schema_of_js]
-block_extractor_model = block_extractor_agent_model_v2(block_extractor_tools) # v2 adds the jsresponse parser to prompt
+block_extractor_model = block_extractor_agent_model_v3(block_extractor_tools) # v2 adds the jsresponse parser to prompt
 block_extractor_agent = BlockExtractorAgent(block_extractor_model,ToolExecutor(block_extractor_tools))
+
+# Indexer Entities Agent
+indexer_entities_model = indexer_entities_agent_model()
+indexer_entities_agent = IndexerEntitiesAgent(indexer_entities_model)
 
 # TableCreation Agent
 table_creation_code_agent_model = table_creation_code_model_v2()
@@ -66,18 +72,18 @@ review_agent = ReviewAgent(review_agent_model)
 
 # Indexer Logic Agent
 # indexer_logic_agent_model = indexer_logic_agent_model()
-# indexer_logic_agent = IndexerLogicAgent(indexer_logic_agent_model)
+# indexer_logic_agent = IndexerEntitiesAgent(indexer_logic_agent_model)
 
 # Define Logical Flow Functions
 
 def block_extractor_agent_router(state):
-    # Check if the block schema has been successfully extracted
-    block_schema = state.block_schema
-    # If block schema is available, proceed to the next step
-    if block_schema != "":
+    # Check if the entity schema has been successfully extracted
+    entity_schema = state.entity_schema
+    # If entity schema is available, proceed to the next step
+    if entity_schema != "":
         return "continue"
     else:
-        # If block schema is not available, repeat the extraction process
+        # If entity schema is not available, repeat the extraction process
         return "repeat"
     
 def code_review_router(state, max_iter=3):
@@ -119,9 +125,9 @@ def create_graph():
 
     # Agent Nodes - these nodes represent different agents handling specific tasks
     workflow.add_node("extract_block_data_agent", block_extractor_agent.call_model)
+    workflow.add_node("indexer_entities_agent", indexer_entities_agent.call_model)
     workflow.add_node("table_creation_code_agent", table_creation_code_agent.call_model)
     workflow.add_node("data_upsertion_code_agent", data_upsertion_code_agent.call_model)
-    # workflow.add_node("indexer_logic_agent", indexer_logic_agent.call_model)
 
     # Tool Nodes - nodes for calling specific tools during the block data extraction process
     workflow.add_node("tools_for_block_data_extraction", block_extractor_agent.call_tool)
@@ -135,7 +141,7 @@ def create_graph():
     workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
     workflow.add_edge("table_creation_code_agent", "review_agent")
     workflow.add_edge("data_upsertion_code_agent", "review_agent")
-    # workflow.add_edge("indexer_logic_agent", "review_agent")
+    workflow.add_edge("indexer_entities_agent", "human_review") # Because indexer entities is just a string, does not need to code review
 
     # Conditional Edges - these edges define the flow based on conditions evaluated at runtime
     workflow.add_conditional_edges(
@@ -153,9 +159,9 @@ def create_graph():
         {
             "continue": "human_review",
             "Repeat Extract Block Data": "extract_block_data_agent",
+            "Repeat Indexer Entities": "indexer_entities_agent",
             "Repeat Table Creation": "table_creation_code_agent",
             "Repeat Data Upsertion": "data_upsertion_code_agent",
-            # "Repeat Indexer Logic": "indexer_logic_agent",
             "end": END,
         }   
     )
@@ -164,14 +170,14 @@ def create_graph():
         "human_review",
         human_review_router,
         {
-            "Completed Extract Block Data": "table_creation_code_agent",
+            "Completed Extract Block Data": "indexer_entities_agent",
+            "Completed Indexer Entities": "table_creation_code_agent",
             "Completed Table Creation": "data_upsertion_code_agent",
-            "Completed Data Upsertion": END, # "indexer_logic_agent",
-            # "Completed Indexer Logic": END,
+            "Completed Data Upsertion": END,
             "Repeat Extract Block Data": "extract_block_data_agent",
+            "Repeat Indexer Entities": "indexer_entities_agent",
             "Repeat Table Creation": "table_creation_code_agent",
             "Repeat Data Upsertion": "data_upsertion_code_agent",
-            # "Repeat Indexer Logic": "indexer_logic_agent",
             "end": END,
         }   
     )

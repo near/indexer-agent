@@ -265,8 +265,8 @@ class DataUpsertionCodeAgent:
         messages = state.messages  # All messages exchanged in the process
         table_creation_code = state.table_creation_code  # SQL code for creating tables
         data_upsertion_code = state.data_upsertion_code  # Current data upsertion code (if any)
-        extract_block_data_code = state.extract_block_data_code  # JavaScript code for extracting block data
-        block_schema = state.block_schema  # Schema of the block data
+        block_data_extraction_code = state.block_data_extraction_code  # JavaScript code for extracting block data
+        entity_schema = state.entity_schema  # Schema of the block data
         iterations = state.iterations  # Number of iterations the process has gone through
 
         # Only take the latest messages for the agent to avoid losing context
@@ -277,8 +277,8 @@ class DataUpsertionCodeAgent:
         if iterations == 0:  # Check if it's the first iteration
             upsert_messages.append(HumanMessage(content=f"""Here is the relevant context code:
             Postgresql schema: {table_creation_code}
-            Javascript Function: {extract_block_data_code}
-            Block Schema: {block_schema}"""))
+            Javascript Function: {block_data_extraction_code}
+            Block Schema: {entity_schema}"""))
 
         # Invoke the model with the current messages to generate/update the data upsertion code
         response = self.model.invoke(upsert_messages)

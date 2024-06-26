@@ -90,7 +90,7 @@ def table_creation_code_model_v2():
     model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(TableCreationResponse)
     return model
 
-# Define a class responsible for generating SQL code for table creation based on block schema
+# Define a class responsible for generating SQL code for table creation based on entity schema
 class TableCreationAgent:
     def __init__(self, model):
         # Initialize the agent with a model capable of generating SQL code
@@ -102,15 +102,15 @@ class TableCreationAgent:
         # Extract necessary information from the state
         messages = state.messages  # All messages exchanged in the process
         table_creation_code = state.table_creation_code  # Current table creation code (if any)
-        indexer_logic = state.indexer_logic
-        block_schema = state.block_schema  # Schema of the block data
+        indexer_entities_description = state.indexer_entities_description
+        entity_schema = state.entity_schema  # Schema of the block data
         iterations = state.iterations  # Number of iterations the process has gone through
 
         # Focus on the latest messages to maintain context relevance
         # This helps in providing the model with the most recent and relevant information
         table_creation_msgs = messages[(-1-iterations*2):]
         # Append a system message with the block schema for context
-        table_creation_msgs.append(SystemMessage(content=f"Here is the Block Schema: {block_schema} and the Entities to create tables for: {indexer_logic}"))
+        table_creation_msgs.append(SystemMessage(content=f"Here is the Block Schema: {entity_schema} and the Entities to create tables for: {indexer_entities_description}"))
 
         # Invoke the model with the current messages to generate/update the table creation code
         response = self.model.invoke(table_creation_msgs)
