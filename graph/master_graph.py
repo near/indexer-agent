@@ -1,7 +1,7 @@
 # External Libraries
 import json
 import operator
-from typing import TypedDict, Annotated, Sequence
+from typing import TypedDict, Annotated, Sequence, Optional
 from langchain_core.messages import BaseMessage,ToolMessage
 from langchain.pydantic_v1 import BaseModel, Field
 from langgraph.graph import StateGraph, END
@@ -11,7 +11,7 @@ from langgraph.prebuilt import ToolExecutor,ToolInvocation
 from agents.BlockExtractorAgent import BlockExtractorAgent,block_extractor_agent_model_v2
 from agents.TableCreationAgent import table_creation_code_model_v2,TableCreationAgent
 from agents.DataUpsertionAgent import data_upsertion_code_model,DataUpsertionCodeAgent
-# from agents.IndexerLogicAgent import indexer_logic_agent_model,IndexerLogicAgent
+from agents.IndexerLogicAgent import indexer_logic_agent_model,IndexerLogicAgent,EntityResponse
 from agents.ReviewAgent import review_agent_model,ReviewAgent,review_step
 from tools.NearLake import tool_get_block_heights
 from tools.JavaScriptRunner import tool_js_on_block_schema_func,tool_infer_schema_of_js
@@ -29,6 +29,7 @@ class GraphState(BaseModel):
         table_creation_code: Data Definition Language code for creating tables
         data_upsertion_code: Data manipulation language code for inserting data using context.db
         iterations: Number of tries to generate the code
+        indexer_logic: Final list of entities that we should design the indexer to track
         error: error message if any
         should_continue: Binary flag for control flow to indicate whether to continue or not
     """
@@ -39,7 +40,7 @@ class GraphState(BaseModel):
     extract_block_data_code: str = Field(description="Javascript code used to extract block schema from blocks")
     table_creation_code: str = Field(description="Data definition language used to create tables in PostgreSQL")
     data_upsertion_code: str = Field(description="Data manipulation language in Javascript used to insert data into tables using context.db")
-    indexer_logic: str = Field(description="Final Javascript code used to load data into postgresql database from the blockchain")
+    indexer_logic: str = Field(description="Final list of entities that we should design the indexer to track, along with specific data and reasoning for each")
     iterations: int = Field(description="Number of tries to generate the code")
     error: str = Field(description="Error message if any returned after attempting to execute code")
     should_continue: bool = Field(description="Boolean used to decide whether or not to continue to next step")

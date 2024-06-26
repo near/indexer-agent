@@ -22,9 +22,9 @@ code_review_response_parser = PydanticOutputParser(pydantic_object=CodeReviewRes
 # Takes state and sequentially determines which code to review by checking backwards
 def review_step(state):
     review_mappings = [
-        ("Indexer Logic", state.indexer_logic, "JavaScript"),
         ("Data Upsertion", state.data_upsertion_code, "JavaScript"),
         ("Table Creation", state.table_creation_code, "PostgreSQL"),
+        ("Indexer Logic", state.indexer_logic, "N/A"),
         ("Extract Block Data", state.extract_block_data_code, "JavaScript")
     ]
     
@@ -41,7 +41,7 @@ def review_agent_model():
                 "system",
                 '''You are a software code reviewer fluent in JavaScript and PostgreSQL building QueryAPI Indexers on NEAR Protocol. Your task is to 
                 review incoming JavaScript and PostgreSQL code and only focus on whether the code has major issues or bugs and return a binary flag on whether to repeat. 
-                If the code is not valid JavaScript or PostgreSQL provide feedback. Include specific code snippets or modification suggestions where possible
+                If the code is not valid JavaScript or PostgreSQL provide feedback. Include specific code snippets or modification suggestions where possible.
 
                 For Javascript code, use standard JavaScript functions and no TypeScript. ensure the code uses modern practices (no var, proper scoping, etc.) 
                 and handles asynchronous operations correctly. Check for common JavaScript errors like hoisting, incorrect use of 'this', and callback errors in asynchronous code.
@@ -59,6 +59,7 @@ def review_agent_model():
                 4. Decoding and parsing data as needed (e.g., base64 decoding) in the JavaScript code.
                 5. Assume `block.actions()`,`block.receipts()`, and `block.header()` are valid.
                 6. Its okay to include a `return block` call after the code as it is for code execution testing.
+                7. The `context` object is defined by importing near lake primitives and will not cause errors when trying to access `context.db`
                 ''',
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),

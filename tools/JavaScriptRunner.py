@@ -133,7 +133,7 @@ return {func_name}(block)"""
 @tool
 def tool_get_block_heights(receiver: str, from_days_ago:int,limit:int) -> [int]:
     """
-    Get list ob block heights for a given receiver id over 'from_days_ago' days
+    Get list of block heights for a given receiver id over 'from_days_ago' days
     To use it, pass the receiver_id, the number of days previous, and limit of blocks
 
     Parameters:
