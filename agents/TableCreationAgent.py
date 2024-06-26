@@ -67,10 +67,14 @@ def table_creation_code_model_v2():
                 "system",
                 '''You are a Postgres SQL engineer working with a Javascript Developer.
                 
-                Based on this schema, generate a TableCreation script for a Postgres database to create a 
-                table that can store the result. Be sure to include and define a primary key, when in doubt fallback on receipt_id.
+                Based on schema and entities, generate a TableCreation script for a Postgres database to create 
+                tables that can store the results. Each table must have a primary key, generally based on available ID columns.
+                For receipt based tables, 'receipt_id' is a default, otherwise create a column 'id' as a serial and constrain as primary key.
+                When possible, implement database normalization best practices in order to optimize storage and retrieval.
+                Ensure that for any attributes containing nested data, such data is decomposed into separate tables to achieve normalization.
                 
                 Convert all field names to snake case and don't remove any words from them.
+                For typing, default to VARCHAR for strings and BIGINT for numbers as many fields will be of undetermined length.
                 
                 Output result in a TableCreationAgentResponse format where 'ddl' field should have newlines (\\n) 
                 replaced with their escaped version (\\\\n) to make the string valid for PostgreSQL.
@@ -86,7 +90,7 @@ def table_creation_code_model_v2():
     model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(TableCreationResponse)
     return model
 
-# Define a class responsible for generating SQL code for table creation based on block schema
+# Define a class responsible for generating SQL code for table creation based on entity schema
 class TableCreationAgent:
     def __init__(self, model):
         # Initialize the agent with a model capable of generating SQL code
@@ -98,14 +102,15 @@ class TableCreationAgent:
         # Extract necessary information from the state
         messages = state.messages  # All messages exchanged in the process
         table_creation_code = state.table_creation_code  # Current table creation code (if any)
-        block_schema = state.block_schema  # Schema of the block data
+        indexer_entities_description = state.indexer_entities_description
+        entity_schema = state.entity_schema  # Schema of the block data
         iterations = state.iterations  # Number of iterations the process has gone through
 
         # Focus on the latest messages to maintain context relevance
         # This helps in providing the model with the most recent and relevant information
         table_creation_msgs = messages[(-1-iterations*2):]
         # Append a system message with the block schema for context
-        table_creation_msgs.append(SystemMessage(content=f"Here is the Block Schema: {block_schema}"))
+        table_creation_msgs.append(SystemMessage(content=f"Here is the Block Schema: {entity_schema} and the Entities to create tables for: {indexer_entities_description}"))
 
         # Invoke the model with the current messages to generate/update the table creation code
         response = self.model.invoke(table_creation_msgs)

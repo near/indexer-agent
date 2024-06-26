@@ -22,10 +22,10 @@ code_review_response_parser = PydanticOutputParser(pydantic_object=CodeReviewRes
 # Takes state and sequentially determines which code to review by checking backwards
 def review_step(state):
     review_mappings = [
-        ("Indexer Logic", state.indexer_logic, "JavaScript"),
         ("Data Upsertion", state.data_upsertion_code, "JavaScript"),
         ("Table Creation", state.table_creation_code, "PostgreSQL"),
-        ("Extract Block Data", state.extract_block_data_code, "JavaScript")
+        ("Indexer Entities", state.indexer_entities_description, "Entities Description"),
+        ("Extract Block Data", state.block_data_extraction_code, "JavaScript")
     ]
     
     for step, code, code_type in review_mappings:
@@ -41,7 +41,7 @@ def review_agent_model():
                 "system",
                 '''You are a software code reviewer fluent in JavaScript and PostgreSQL building QueryAPI Indexers on NEAR Protocol. Your task is to 
                 review incoming JavaScript and PostgreSQL code and only focus on whether the code has major issues or bugs and return a binary flag on whether to repeat. 
-                If the code is not valid JavaScript or PostgreSQL provide feedback. Include specific code snippets or modification suggestions where possible
+                If the code is not valid JavaScript or PostgreSQL provide feedback. Include specific code snippets or modification suggestions where possible.
 
                 For Javascript code, use standard JavaScript functions and no TypeScript. ensure the code uses modern practices (no var, proper scoping, etc.) 
                 and handles asynchronous operations correctly. Check for common JavaScript errors like hoisting, incorrect use of 'this', and callback errors in asynchronous code.
@@ -59,6 +59,7 @@ def review_agent_model():
                 4. Decoding and parsing data as needed (e.g., base64 decoding) in the JavaScript code.
                 5. Assume `block.actions()`,`block.receipts()`, and `block.header()` are valid.
                 6. Its okay to include a `return block` call after the code as it is for code execution testing.
+                7. The `context` object is defined by importing near lake primitives and will not cause errors when trying to access `context.db`
                 ''',
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
@@ -86,9 +87,9 @@ class ReviewAgent:
         # Extract relevant information from the state
         messages = state.messages
         iterations = state.iterations
-        extract_block_data_code = state.extract_block_data_code
+        block_data_extraction_code = state.block_data_extraction_code
         error = state.error
-        block_schema = state.block_schema
+        entity_schema = state.entity_schema
         # Determine the current step, the code to review, and its type
         step, code, code_type = review_step(state)
         # Create a new message prompting for review of the code
@@ -124,18 +125,18 @@ class ReviewAgent:
         wrapped_message = SystemMessage(content=str(response))
 
         # Return the updated state including the decision on whether to continue
-        return {"messages": messages + [wrapped_message],"should_continue": should_continue, "extract_block_data_code":extract_block_data_code,"block_schema":block_schema, "error":error,"iterations":iterations}
+        return {"messages": messages + [wrapped_message],"should_continue": should_continue, "block_data_extraction_code":block_data_extraction_code,"entity_schema":entity_schema, "error":error,"iterations":iterations}
     
     def human_review(self,state):
         # Method for manual human review of the code
         step, code, code_type = review_step(state)
         messages = state.messages
-        block_schema = state.block_schema
+        entity_schema = state.entity_schema
         response = ""
         # Prompt for human review until a valid response ('yes' or 'no') is received
         if step == "Extract Block Data":
-            # Print the block schema for reference during review
-            print(f"Block Schema: {block_schema}")
+            # Print the entity schema for reference during review
+            print(f"Entity Schema: {entity_schema}")
         while response != "yes" or response != "no":
             response = input(prompt=f"Please review the {step}: {code}. Is it correct? (yes/no)")
             if response == "yes":
@@ -143,5 +144,5 @@ class ReviewAgent:
                 return {"messages": messages, "should_continue":True, "iterations":0}
             elif response == "no":
                 # If the code is incorrect, prompt for feedback and do not continue
-                feedback = input(f"Please provide feedback on the {code_type} code: {code}")
+                feedback = input(f"Please provide feedback on the {code_type}: {code}")
                 return {"messages": messages + [HumanMessage(content=feedback)], "should_continue":False, "iterations":0}
