@@ -13,6 +13,7 @@ from agents.TableCreationAgent import table_creation_code_model_v2,TableCreation
 from agents.DataUpsertionAgent import data_upsertion_code_model,DataUpsertionCodeAgent
 from agents.IndexerEntitiesAgent import indexer_entities_agent_model,IndexerEntitiesAgent,EntityResponse
 from agents.ReviewAgent import review_agent_model,ReviewAgent,review_step
+from tools.database import tool_run_sql_ddl
 from tools.NearLake import tool_get_block_heights
 from tools.JavaScriptRunner import tool_js_on_block_schema_func,tool_infer_schema_of_js
 
@@ -58,9 +59,10 @@ block_extractor_agent = BlockExtractorAgent(block_extractor_model,ToolExecutor(b
 indexer_entities_model = indexer_entities_agent_model()
 indexer_entities_agent = IndexerEntitiesAgent(indexer_entities_model)
 
-# TableCreation Agent
-table_creation_code_agent_model = table_creation_code_model_v2()
-table_creation_code_agent = TableCreationAgent(table_creation_code_agent_model)
+# Table Creation Agent
+table_creation_tools = [tool_run_sql_ddl]
+table_creation_code_agent_model = table_creation_code_model_v2(table_creation_tools)
+table_creation_code_agent = TableCreationAgent(table_creation_code_agent_model,ToolExecutor(table_creation_tools))
 
 # DataUpsertion Agent
 data_upsertion_code_agent_model = data_upsertion_code_model() #v2 no documentation

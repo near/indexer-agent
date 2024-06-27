@@ -1,10 +1,12 @@
+genson
 fastapi
 langchain
 langsmith
 langgraph
 langserve
 langchain_openai
-python-dotenv
-genson
 openai
 numpy
+psycopg2
+python-dotenv
+sqlalchemy

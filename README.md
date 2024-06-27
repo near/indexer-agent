@@ -18,6 +18,13 @@ Initial POC of Indexer Agent utilizing LangChain's [Langgraph](https://python.la
     LANGCHAIN_API_KEY=<LANGCHAIN_API_KEY>  
     LANGCHAIN_PROJECT=<LANGCHAIN_PROJECT>  
 ```
+- When setting up postgresql to run locally follow these steps
+brew install postgresql
+brew services start postgresql
+psql postgres
+CREATE ROLE username WITH LOGIN PASSWORD 'password';
+CREATE DATABASE db OWNER username;
+GRANT ALL PRIVILEGES ON DATABASE db TO username;
 
 ## Structure
 Below is a brief overview of the key files and directories within the Indexer Agent project:
@@ -37,6 +44,20 @@ Please note that this structure is subject to change as the project evolves. Alw
 - You can operating the current working version at [IndexerAgent](IndexerAgent.ipynb) 
 - You can test out working code using [QueryAPI](https://dev.near.org/dataplatform.near/widget/QueryApi.App?view=create-new-indexer)
 - You can follow progress of your calls using [Langsmith](https://smith.langchain.com/)
+
+## Setting up PostgreSQL locally
+Instructions to setup postgresql locally. You'll run the following commands (assuming macOS):
+
+`brew install postgresql`  
+`brew services start postgresql`  
+`psql postgres`  
+`CREATE USER username WITH PASSWORD 'password';`  
+`CREATE DATABASE db;`  
+`GRANT ALL PRIVILEGES ON DATABASE db TO username;`  
+`\q`  
+
+When running the script, if you run into an LRC Path issue, make sure to run within jupyter notebook:
+%pip install psycopg2 psycopg2-binary
 
 ## Langserve
 - To run Langserve, navigate to the langserve-indexer-agent folder `cd langserve-indexer-agent` and run `langchain serve`
