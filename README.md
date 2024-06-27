@@ -44,3 +44,29 @@ Please note that this structure is subject to change as the project evolves. Alw
 - You can operating the current working version at [IndexerAgent](IndexerAgent.ipynb) 
 - You can test out working code using [QueryAPI](https://dev.near.org/dataplatform.near/widget/QueryApi.App?view=create-new-indexer)
 - You can follow progress of your calls using [Langsmith](https://smith.langchain.com/)
+
+## Setting up PostgreSQL locally
+Instructions to setup postgresql locally. You'll run the follwoing commands (assuming macOS):
+
+`brew install postgresql`  
+`brew services start postgresql`  
+`psql postgres`  
+`CREATE USER username WITH PASSWORD 'password';`  
+`CREATE DATABASE db;`  
+`GRANT ALL PRIVILEGES ON DATABASE db TO username;`  
+`\q`  
+
+When running the script, if you run into an LRC Path issue, follow these directions
+1. run brew info libpq
+2. echo 'export PATH="/opt/homebrew/opt/libpq/bin:$PATH"' >> ~/.zshrc
+3. echo 'export LDFLAGS="-L/opt/homebrew/opt/libpq/lib"' >> ~/.zshrc
+4. echo 'export CPPFLAGS="-I/opt/homebrew/opt/libpq/include"' >> ~/.zshrc
+6. echo 'export DYLD_LIBRARY_PATH="/opt/homebrew/opt/libpq/lib:$DYLD_LIBRARY_PATH"' >> ~/.zshrc
+5. source ~/.zshrc
+
+MAYBE:
+pip uninstall psycopg2
+pip install psycopg2 --no-cache-dir
+
+Within jupyter notebook need to make sure to include
+%pip install psycopg2 psycopg2-binary

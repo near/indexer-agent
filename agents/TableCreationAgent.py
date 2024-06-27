@@ -74,8 +74,7 @@ def table_creation_code_model_v2(tools):
                 
                 Convert all field names to snake case and don't remove any words from them.
                 
-                Output result in a TableCreationAgentResponse format where 'ddl' field should have newlines (\\n) 
-                replaced with their escaped version (\\\\n) to make the string valid for PostgreSQL.
+                Output result in a TableCreationAgentResponse format where 'ddl' field should be valid PostgreSQL.
                 ''',
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),

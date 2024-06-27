@@ -2,22 +2,24 @@ from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, 
 from sqlalchemy.exc import SQLAlchemyError
 from langchain.tools import StructuredTool, tool
 
-def setup_database():
-    # Superuser credentials to create user and database
+# import os
 
+# # Locate PostgreSQL installation prefix
+# postgres_prefix = os.popen("brew --prefix postgresql").read().strip()
 
-    try:
-        # Create an engine and connect to the database
-        engine = create_engine(admin_uri)
-        # Try to connect to the database to check if everything is setup correctly
-        connection = engine.connect()
-        connection.close()  # Close the connection if it was successful
-        print("Database connection was successful.")
-    except SQLAlchemyError as e:
-        print(f"An error occurred: {e}")
+# # Set environment variables
+# os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = f"{postgres_prefix}/lib:/usr/local/lib:/usr/lib"
+# os.environ['PATH'] = f"{postgres_prefix}/bin:" + os.environ['PATH']
+# os.environ['LDFLAGS'] = f"-L{postgres_prefix}/lib"
+# os.environ['CPPFLAGS'] = f"-I{postgres_prefix}/include"
+# os.environ['DYLD_LIBRARY_PATH'] = f"{postgres_prefix}/lib:" + os.environ.get('DYLD_LIBRARY_PATH', '')
 
-    return engine
-
+# # Verify environment variables (optional, for debugging purposes)
+# print(os.environ['DYLD_FALLBACK_LIBRARY_PATH'])
+# print(os.environ['PATH'])
+# print(os.environ['LDFLAGS'])
+# print(os.environ['CPPFLAGS'])
+# print(os.environ['DYLD_LIBRARY_PATH'])
 
 def create_db_engine(db_name='db',user_name='username',password='password'):
     DATABASE_URI = f'postgresql://{user_name}:{password}@localhost:5432/{db_name}'
