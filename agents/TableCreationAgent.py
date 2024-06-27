@@ -76,8 +76,7 @@ def table_creation_code_model_v2():
                 Convert all field names to snake case and don't remove any words from them.
                 For typing, default to VARCHAR for strings and BIGINT for numbers as many fields will be of undetermined length.
                 
-                Output result in a TableCreationAgentResponse format where 'ddl' field should have newlines (\\n) 
-                replaced with their escaped version (\\\\n) to make the string valid for PostgreSQL.
+                Output result in a TableCreationAgentResponse format where 'ddl' field is valid PostgreSQL.
                 ''',
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
@@ -108,7 +107,8 @@ class TableCreationAgent:
 
         # Focus on the latest messages to maintain context relevance
         # This helps in providing the model with the most recent and relevant information
-        table_creation_msgs = messages[(-1-iterations*2):]
+        # table_creation_msgs = messages[(-1-iterations*2):]
+        table_creation_msgs = [messages[0]] # only take the original message
         # Append a system message with the block schema for context
         table_creation_msgs.append(SystemMessage(content=f"Here is the Block Schema: {entity_schema} and the Entities to create tables for: {indexer_entities_description}"))
 

@@ -37,3 +37,8 @@ Please note that this structure is subject to change as the project evolves. Alw
 - You can operating the current working version at [IndexerAgent](IndexerAgent.ipynb) 
 - You can test out working code using [QueryAPI](https://dev.near.org/dataplatform.near/widget/QueryApi.App?view=create-new-indexer)
 - You can follow progress of your calls using [Langsmith](https://smith.langchain.com/)
+
+## Langserve
+- To run Langserve, navigate to the langserve-indexer-agent folder `cd langserve-indexer-agent` and run `langchain serve`
+- Note that langchain serve does not currently allow for human in the loop ([issue](https://github.com/langchain-ai/langserve/issues/313)) so we run the create_graph_no_human_review() from master_graph.py script
+- Navigate to http://localhost:8000/indexer-agent/playground/ and enter a prompt into the "Original prompt" field and click start

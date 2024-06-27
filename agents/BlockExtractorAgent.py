@@ -94,7 +94,6 @@ def sanitized_schema_for(block_height: int, js: str) -> str:
 #     return model
 
 def block_extractor_agent_model_v2(tools):
-
     # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -137,7 +136,7 @@ def block_extractor_agent_model_v2(tools):
     ).partial(format_instructions=jsreponse_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True)
 
     # Create the tools to bind to the model
     tools = [convert_to_openai_function(t) for t in tools]
@@ -347,7 +346,7 @@ def block_extractor_agent_model_v3(tools):
     ).partial(format_instructions=jsreponse_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True,)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True)
 
     # Create the tools to bind to the model
     tools = [convert_to_openai_function(t) for t in tools]
@@ -366,6 +365,8 @@ class BlockExtractorAgent:
 
     def call_model(self, state):
         messages = state.messages
+        if len(messages) == 0: # Add the original prompt if this is the beginning of message history
+            messages = [HumanMessage(content=state.original_prompt)]
         error = state.error
         block_data_extraction_code = state.block_data_extraction_code
         if error != "":

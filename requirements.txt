@@ -1,6 +1,8 @@
+fastapi
 langchain
 langsmith
 langgraph
+langserve
 langchain_openai
 python-dotenv
 genson

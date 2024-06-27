@@ -22,8 +22,8 @@ class GraphState(BaseModel):
     Represents the state of our graph.
 
     Attributes:
+        original_prompt: [Required] Original prompt of the beginning of the workflow
         messages: With user questions, tracking plans, reasoning
-        original_prompt: Original prompt of the beginning of the workflow
         block_heights: Block heights of the blocks to be parsed
         block_data_extraction_code: Javascript code used to extract entity schema from blocks
         entity_schema: Extracted entity schema derived from parsing data from blocks
@@ -35,17 +35,17 @@ class GraphState(BaseModel):
         should_continue: Binary flag for control flow to indicate whether to continue or not
     """
 
-    messages: Sequence[BaseMessage] = Field(description="List of messages that track history interacting with agents")
     original_prompt: str = Field(description = "Prompt of the beginning of the workflow")
+    messages: Sequence[BaseMessage] = Field(description="List of messages that track history interacting with agents")
     block_heights: Sequence[int] = Field(description="Block heights of the blocks to be parsed")
-    entity_schema: str = Field(description="Extracted entity schema derived from parsing data from blocks")
-    block_data_extraction_code: str = Field(description="Javascript code used to extract entity schema from blocks")
-    table_creation_code: str = Field(description="Data definition language used to create tables in PostgreSQL")
-    data_upsertion_code: str = Field(description="Data manipulation language in Javascript used to insert data into tables using context.db")
-    indexer_entities_description: str = Field(description="Description of entities the indexer is meant to track, including specific data and reasoning for each")
-    iterations: int = Field(description="Number of tries to generate the code")
-    error: str = Field(description="Error message if any returned after attempting to execute code")
-    should_continue: bool = Field(description="Boolean used to decide whether or not to continue to next step")
+    entity_schema: str = Field(default="",description="Extracted entity schema derived from parsing data from blocks")
+    block_data_extraction_code: str = Field(default="",description="Javascript code used to extract entity schema from blocks")
+    table_creation_code: str = Field(default="",description="Data definition language used to create tables in PostgreSQL")
+    data_upsertion_code: str = Field(default="",description="Data manipulation language in Javascript used to insert data into tables using context.db")
+    indexer_entities_description: str = Field(default="",description="Description of entities the indexer is meant to track, including specific data and reasoning for each")
+    iterations: int = Field(default=0,description="Number of tries to generate the code")
+    error: str = Field(default="",description="Error message if any returned after attempting to execute code")
+    should_continue: bool = Field(default=False,description="Boolean used to decide whether or not to continue to next step")
 
 
 # Load agents & tools
@@ -93,7 +93,8 @@ def code_review_router(state, max_iter=3):
     step, _, _ = review_step(state)
     # If review is positive, continue the workflow
     if should_continue:
-        return "continue"
+        print(f"Completed {step}")
+        return f"Completed {step}"
     elif iterations > max_iter:
         # Limit the number of iterations to avoid infinite loops
         print("Completed 3 Iterations: Exiting to avoid infinite looping.")
@@ -157,7 +158,10 @@ def create_graph():
         "review_agent",
         code_review_router,
         {
-            "continue": "human_review",
+            "Completed Extract Block Data": "human_review",
+            "Completed Indexer Entities": "human_review",
+            "Completed Table Creation": "human_review",
+            "Completed Data Upsertion": "human_review",
             "Repeat Extract Block Data": "extract_block_data_agent",
             "Repeat Indexer Entities": "indexer_entities_agent",
             "Repeat Table Creation": "table_creation_code_agent",
@@ -174,6 +178,65 @@ def create_graph():
             "Completed Indexer Entities": "table_creation_code_agent",
             "Completed Table Creation": "data_upsertion_code_agent",
             "Completed Data Upsertion": END,
+            "Repeat Extract Block Data": "extract_block_data_agent",
+            "Repeat Indexer Entities": "indexer_entities_agent",
+            "Repeat Table Creation": "table_creation_code_agent",
+            "Repeat Data Upsertion": "data_upsertion_code_agent",
+            "end": END,
+        }   
+    )
+
+    return workflow
+
+# Create a version without human review for langserve
+def create_graph_no_human_review():
+    # Initializes the workflow graph with various agents and review steps
+    workflow = StateGraph(GraphState)
+
+    # Agent Nodes - these nodes represent different agents handling specific tasks
+    workflow.add_node("extract_block_data_agent", block_extractor_agent.call_model)
+    workflow.add_node("indexer_entities_agent", indexer_entities_agent.call_model)
+    workflow.add_node("table_creation_code_agent", table_creation_code_agent.call_model)
+    workflow.add_node("data_upsertion_code_agent", data_upsertion_code_agent.call_model)
+
+    # Tool Nodes - nodes for calling specific tools during the block data extraction process
+    workflow.add_node("tools_for_block_data_extraction", block_extractor_agent.call_tool)
+
+    # Review Nodes - nodes for reviewing the code automatically and manually (human review)
+    workflow.add_node("review_agent", review_agent.call_model)
+
+    # Print Final End State
+    workflow.add_node("print_final", lambda state: print(f"""Table Creation Code:
+        {state.table_creation_code}
+    Data Upsertion Code: 
+        {state.data_upsertion_code}"""))
+
+    # Add Edges - defines the flow between different nodes based on the task completion
+    workflow.set_entry_point("extract_block_data_agent")
+    workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
+    workflow.add_edge("table_creation_code_agent", "review_agent")
+    workflow.add_edge("data_upsertion_code_agent", "review_agent")
+    workflow.add_edge("indexer_entities_agent", "table_creation_code_agent")
+    workflow.add_edge("print_final", END)
+
+    # Conditional Edges - these edges define the flow based on conditions evaluated at runtime
+    workflow.add_conditional_edges(
+        "tools_for_block_data_extraction",
+        block_extractor_agent_router,
+        {
+            "continue": "review_agent",
+            "repeat": "extract_block_data_agent",
+        }   
+    )
+
+    workflow.add_conditional_edges(
+        "review_agent",
+        code_review_router,
+        {
+            "Completed Extract Block Data": "indexer_entities_agent",
+            # "Completed Indexer Entities": "human_review", # this step is skipped
+            "Completed Table Creation": "data_upsertion_code_agent",
+            "Completed Data Upsertion": "print_final",
             "Repeat Extract Block Data": "extract_block_data_agent",
             "Repeat Indexer Entities": "indexer_entities_agent",
             "Repeat Table Creation": "table_creation_code_agent",
