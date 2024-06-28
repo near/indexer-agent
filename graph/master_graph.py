@@ -205,7 +205,7 @@ def create_graph():
     return workflow
 
 # Create a version without human review for langserve
-def create_graph_no_human_review():
+def create_graph_no_human_review(**kwargs):
     # Initializes the workflow graph with various agents and review steps
     workflow = StateGraph(GraphState)
 

@@ -24,8 +24,22 @@ os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT")
 
 # Create Langgraph
 from graph.master_graph import create_graph_no_human_review
+def create_graph_with_defaults():
+    defaults = {
+        "block_heights":[],
+        "entity_schema": "",
+        "block_data_extraction_code":"",
+        "table_creation_code":"",
+        "data_upsertion_code": "",
+        "indexer_entities_description":"",
+        "iterations": 0,
+        "error":"",
+        "should_continue": False,
+    }
+    return create_graph_no_human_review(**defaults)
+
 # workflow = create_graph() # INCLUDES HUMAN IN THE LOOP
-workflow = create_graph_no_human_review()
+workflow = create_graph_with_defaults()
 compiled_graph = workflow.compile()
 
 

@@ -66,6 +66,6 @@ Sometimes you might also have to uninstall and reinstall psycopg2
 ## Langserve
 - To run Langserve, navigate to the langserve-indexer-agent folder `cd langserve-indexer-agent` 
 - Make sure to run `pip install -U langchain-cli`
-- Then run `langchain serve`
+- Then run `langchain serve`, you can also explicitly run `langchain serve --host 0.0.0.0 --port 8000`
 - Note that langchain serve does not currently allow for human in the loop ([issue](https://github.com/langchain-ai/langserve/issues/313)) so we run the create_graph_no_human_review() from master_graph.py script
 - Navigate to http://localhost:8000/indexer-agent/playground/ and enter a prompt into the "Original prompt" field and click start

@@ -121,6 +121,11 @@ class ReviewAgent:
         if should_continue != True:
             # If code is not valid, print a message and repeat the step
             print(f"Code is not valid. Repeating: {step}.")
+            # Increment iterations
+            iterations += 1
+        else:
+            #Reset iterations to 0
+            iterations = 0
         # Wrap the model's response in a system message
         wrapped_message = SystemMessage(content=str(response))
 
