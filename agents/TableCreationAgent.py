@@ -79,6 +79,7 @@ def table_creation_code_model_v2(tools):
                 For typing, default to VARCHAR for strings and BIGINT for numbers as many fields will be of undetermined length.
                 
                 Output result in a TableCreationAgentResponse format where 'ddl' field is valid PostgreSQL.
+                Put all SQL code into 1 tool call.
                 ''',
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
