@@ -37,16 +37,16 @@ class GraphState(BaseModel):
     """
 
     original_prompt: str = Field(description = "Prompt of the beginning of the workflow")
-    messages: Sequence[BaseMessage] = Field(description="List of messages that track history interacting with agents")
-    block_heights: Sequence[int] = Field(description="Block heights of the blocks to be parsed")
-    entity_schema: str = Field(default="",description="Extracted entity schema derived from parsing data from blocks")
-    block_data_extraction_code: str = Field(default="",description="Javascript code used to extract entity schema from blocks")
-    table_creation_code: str = Field(default="",description="Data definition language used to create tables in PostgreSQL")
-    data_upsertion_code: str = Field(default="",description="Data manipulation language in Javascript used to insert data into tables using context.db")
-    indexer_entities_description: str = Field(default="",description="Description of entities the indexer is meant to track, including specific data and reasoning for each")
-    iterations: int = Field(default=0,description="Number of tries to generate the code")
-    error: str = Field(default="",description="Error message if any returned after attempting to execute code")
-    should_continue: bool = Field(default=False,description="Boolean used to decide whether or not to continue to next step")
+    messages: Optional[Sequence[BaseMessage]] = Field(description="List of messages that track history interacting with agents")
+    block_heights: Optional[Sequence[int]] = Field(description="Block heights of the blocks to be parsed")
+    entity_schema: Optional[str] = Field(default="",description="Extracted entity schema derived from parsing data from blocks")
+    block_data_extraction_code: Optional[str] = Field(default="",description="Javascript code used to extract entity schema from blocks")
+    table_creation_code: Optional[str] = Field(default="",description="Data definition language used to create tables in PostgreSQL")
+    data_upsertion_code: Optional[str] = Field(default="",description="Data manipulation language in Javascript used to insert data into tables using context.db")
+    indexer_entities_description: Optional[str] = Field(default="",description="Description of entities the indexer is meant to track, including specific data and reasoning for each")
+    iterations: Optional[int] = Field(default=0,description="Number of tries to generate the code")
+    error: Optional[str] = Field(default="",description="Error message if any returned after attempting to execute code")
+    should_continue: Optional[bool] = Field(default=False,description="Boolean used to decide whether or not to continue to next step")
 
 
 # Load agents & tools
