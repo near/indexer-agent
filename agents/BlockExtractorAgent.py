@@ -365,17 +365,39 @@ class BlockExtractorAgent:
 
     def call_model(self, state):
         messages = state.messages
-        if len(messages) == 0: # Add the original prompt if this is the beginning of message history
-            messages = [HumanMessage(content=state.original_prompt)]
+        iterations = state.iterations
+        block_heights = state.block_heights
+        entity_schema = state.entity_schema
+        block_data_extraction_code = state.block_data_extraction_code
+        table_creation_code = state.table_creation_code
+        data_upsertion_code = state.data_upsertion_code
+        indexer_entities_description = state.indexer_entities_description
+        should_continue = state.should_continue
         error = state.error
         block_data_extraction_code = state.block_data_extraction_code
+        # If iterations is none this is the initialization of states
+        if iterations == None:
+            iterations = 0
+            block_heights=[]
+            entity_schema= ""
+            block_data_extraction_code=""
+            table_creation_code=""
+            data_upsertion_code= ""
+            indexer_entities_description=""
+            iterations= 0
+            error=""
+            should_continue= False
+        if len(messages) == 0: # Add the original prompt if this is the beginning of message history
+            messages = [HumanMessage(content=state.original_prompt)]
         if error != "":
             reflection_msg = f"""You tried to run the following Javascript function and returned an error. Change the javascript function code based on the feedback.
             Javascript function: {block_data_extraction_code}
             Error: {error}"""
             messages += [HumanMessage(content=reflection_msg)]
         response = self.model.invoke(messages)
-        return {"messages": messages + [response]}
+        return {"messages": messages + [response], "iterations": iterations,
+                "block_heights": block_heights, "entity_schema": entity_schema, "block_data_extraction_code": block_data_extraction_code, "table_creation_code": table_creation_code,
+                "data_upsertion_code": data_upsertion_code, "indexer_entities_description": indexer_entities_description, "error": error, "should_continue": should_continue}
     
     def call_tool(self, state):
         messages = state.messages
