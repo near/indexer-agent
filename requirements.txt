@@ -1,5 +1,6 @@
 genson
 fastapi
+javascript
 langchain
 langsmith
 langgraph
@@ -7,6 +8,6 @@ langserve
 langchain_openai
 openai
 numpy
-psycopg2
+psycopg2-binary
 python-dotenv
 sqlalchemy
