@@ -72,10 +72,6 @@ data_upsertion_code_agent = DataUpsertionCodeAgent(data_upsertion_code_agent_mod
 review_agent_model = review_agent_model()
 review_agent = ReviewAgent(review_agent_model)
 
-# Indexer Logic Agent
-# indexer_logic_agent_model = indexer_logic_agent_model()
-# indexer_logic_agent = IndexerEntitiesAgent(indexer_logic_agent_model)
-
 # Define Logical Flow Functions
 
 def block_extractor_agent_router(state):
@@ -86,6 +82,14 @@ def block_extractor_agent_router(state):
         return "continue"
     else:
         # If entity schema is not available, repeat the extraction process
+        return "repeat"
+
+def should_review(state):
+    should_continue = state.should_continue
+    # If block schema is no longer null we review schema
+    if should_continue == True:
+        return "continue"
+    else:
         return "repeat"
     
 def code_review_router(state, max_iter=3):
@@ -134,6 +138,7 @@ def create_graph():
 
     # Tool Nodes - nodes for calling specific tools during the block data extraction process
     workflow.add_node("tools_for_block_data_extraction", block_extractor_agent.call_tool)
+    workflow.add_node("tools_for_table_creation", table_creation_code_agent.call_tool)
 
     # Review Nodes - nodes for reviewing the code automatically and manually (human review)
     workflow.add_node("review_agent", review_agent.call_model)
@@ -142,7 +147,7 @@ def create_graph():
     # Add Edges - defines the flow between different nodes based on the task completion
     workflow.set_entry_point("extract_block_data_agent")
     workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
-    workflow.add_edge("table_creation_code_agent", "review_agent")
+    workflow.add_edge("table_creation_code_agent", "tools_for_table_creation")
     workflow.add_edge("data_upsertion_code_agent", "review_agent")
     workflow.add_edge("indexer_entities_agent", "human_review") # Because indexer entities is just a string, does not need to code review
 
@@ -153,6 +158,15 @@ def create_graph():
         {
             "continue": "review_agent",
             "repeat": "extract_block_data_agent",
+        }   
+    )
+
+    workflow.add_conditional_edges(
+        "tools_for_table_creation",
+        should_review,
+        {
+            "continue": "review_agent",
+            "repeat": "table_creation_code_agent",
         }   
     )
 
@@ -203,6 +217,7 @@ def create_graph_no_human_review():
 
     # Tool Nodes - nodes for calling specific tools during the block data extraction process
     workflow.add_node("tools_for_block_data_extraction", block_extractor_agent.call_tool)
+    workflow.add_node("tools_for_table_creation", table_creation_code_agent.call_tool)
 
     # Review Nodes - nodes for reviewing the code automatically and manually (human review)
     workflow.add_node("review_agent", review_agent.call_model)
@@ -216,7 +231,7 @@ def create_graph_no_human_review():
     # Add Edges - defines the flow between different nodes based on the task completion
     workflow.set_entry_point("extract_block_data_agent")
     workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
-    workflow.add_edge("table_creation_code_agent", "review_agent")
+    workflow.add_edge("table_creation_code_agent", "tools_for_table_creation")
     workflow.add_edge("data_upsertion_code_agent", "review_agent")
     workflow.add_edge("indexer_entities_agent", "table_creation_code_agent")
     workflow.add_edge("print_final", END)
@@ -232,11 +247,19 @@ def create_graph_no_human_review():
     )
 
     workflow.add_conditional_edges(
+        "tools_for_table_creation",
+        should_review,
+        {
+            "continue": "review_agent",
+            "repeat": "table_creation_code_agent",
+        }   
+    )
+
+    workflow.add_conditional_edges(
         "review_agent",
         code_review_router,
         {
             "Completed Extract Block Data": "indexer_entities_agent",
-            # "Completed Indexer Entities": "human_review", # this step is skipped
             "Completed Table Creation": "data_upsertion_code_agent",
             "Completed Data Upsertion": "print_final",
             "Repeat Extract Block Data": "extract_block_data_agent",

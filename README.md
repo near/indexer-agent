@@ -58,6 +58,10 @@ Instructions to setup postgresql locally. You'll run the following commands (ass
 
 When running the script, if you run into an LRC Path issue, make sure to run within jupyter notebook:
 %pip install psycopg2 psycopg2-binary
+Sometimes you might also have to uninstall and reinstall psycopg2
+`pip uninstall psycopg2`
+`pip install psycopg2`
+`pip install psycopg2-binary`
 
 ## Langserve
 - To run Langserve, navigate to the langserve-indexer-agent folder `cd langserve-indexer-agent` and run `langchain serve`

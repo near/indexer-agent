@@ -113,13 +113,17 @@ class TableCreationAgent:
         indexer_entities_description = state.indexer_entities_description
         entity_schema = state.entity_schema  # Schema of the block data
         iterations = state.iterations  # Number of iterations the process has gone through
+        error = state.error  # Error message (if any)
 
         # Focus on the latest messages to maintain context relevance
         # This helps in providing the model with the most recent and relevant information
         # table_creation_msgs = messages[(-1-iterations*2):]
-        table_creation_msgs = [messages[0]] # only take the original message
-        # Append a system message with the block schema for context
-        table_creation_msgs.append(SystemMessage(content=f"Here is the Block Schema: {entity_schema} and the Entities to create tables for: {indexer_entities_description}"))
+        if error == "":
+            table_creation_msgs = [messages[0]] # only take the original message
+            # Append a system message with the block schema for context
+            table_creation_msgs.append(SystemMessage(content=f"Here is the Block Schema: {entity_schema} and the Entities to create tables for: {indexer_entities_description}"))
+        else:
+            table_creation_msgs = messages[(-1-iterations*2):]
 
         # Invoke the model with the current messages to generate/update the table creation code
         response = self.model.invoke(table_creation_msgs)
@@ -139,6 +143,7 @@ class TableCreationAgent:
         iterations = state.iterations
         error = state.error
         table_creation_code = state.table_creation_code
+        should_continue = state.should_continue
         # We know the last message involves at least one tool call
         last_message = messages[-1]
 
@@ -163,7 +168,8 @@ class TableCreationAgent:
         # If the tool call was successful, we update the state, otherwise we set an error message
         if messages[-1].content == "DDL statement executed successfully.":
             table_creation_code = tool_call['function']['arguments']
+            should_continue=True
         else:
             error = "An error occurred while running the SQL DDL statement. " + messages[-1].content
 
-        return {"messages": messages, "table_creation_code":table_creation_code, "iterations":iterations+1,"error":error}
+        return {"messages": messages, "table_creation_code":table_creation_code, "iterations":iterations+1,"error":error,"should_continue":should_continue}
