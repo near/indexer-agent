@@ -59,7 +59,7 @@ def run_js_on_blocks_only_schema(block_heights: [int], js: str) -> str:
     return schema_builder.to_json(indent=2)
 
 
-def infer_schema_of_js(receiver: str, js: str, from_days_ago=100, limit=10, block_heights=[]) -> str:
+def infer_schema_of_js(receiver: str, js: str, from_days_ago=5, limit=10, block_heights=[]) -> str:
     if len(block_heights) == 0:
         block_heights = get_block_heights(receiver, from_days_ago, limit)
     schema_builder = SchemaBuilder(schema_uri=None)

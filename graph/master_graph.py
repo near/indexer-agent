@@ -2,7 +2,7 @@
 import json
 import operator
 from typing import TypedDict, Annotated, Sequence, Optional
-from langchain_core.messages import BaseMessage,ToolMessage
+from langchain_core.messages import BaseMessage,ToolMessage,SystemMessage
 from langchain.pydantic_v1 import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolExecutor,ToolInvocation
@@ -24,6 +24,9 @@ class GraphState(BaseModel):
 
     Attributes:
         original_prompt: [Required] Original prompt of the beginning of the workflow
+        block_limit: Limit on number of blocks to be parsed, default 10 blocks
+        previous_day_limit: Limit on number of previous days to pull block from, default 5 days
+
         messages: With user questions, tracking plans, reasoning
         block_heights: Block heights of the blocks to be parsed
         block_data_extraction_code: Javascript code used to extract entity schema from blocks
@@ -34,11 +37,19 @@ class GraphState(BaseModel):
         indexer_entities_description: Description of entities the indexer is meant to track, including specific data and reasoning for each
         error: error message if any
         should_continue: Binary flag for control flow to indicate whether to continue or not
+        code_iterations_limit: Number of iterations during automated code generation and review to prevent infinite recursion, default 3
+        human_approval_flag: Yes/no flag for whether human reviewed code should continue
+        human_feedback: If human approval is flagged as no, add in feedback
     """
 
+    # Required to run
     original_prompt: str = Field(description = "Prompt of the beginning of the workflow")
-    messages: Optional[Sequence[BaseMessage]] = Field(description="List of messages that track history interacting with agents")
-    block_heights: Optional[Sequence[int]] = Field(description="Block heights of the blocks to be parsed")
+    block_limit: int = Field(default=10,description="Limit on number of blocks to be parsed, default 10 blocks")
+    previous_day_limit: int = Field(default=5,description="Limit on number of previous days to pull block from, default 5 days")
+
+    # Optional
+    messages: Optional[Sequence[BaseMessage]] = Field(default=[],description="List of messages that track history interacting with agents")
+    block_heights: Optional[Sequence[int]] = Field(default=[],description="Block heights of the blocks to be parsed")
     entity_schema: Optional[str] = Field(default="",description="Extracted entity schema derived from parsing data from blocks")
     block_data_extraction_code: Optional[str] = Field(default="",description="Javascript code used to extract entity schema from blocks")
     table_creation_code: Optional[str] = Field(default="",description="Data definition language used to create tables in PostgreSQL")
@@ -47,6 +58,9 @@ class GraphState(BaseModel):
     iterations: Optional[int] = Field(default=0,description="Number of tries to generate the code")
     error: Optional[str] = Field(default="",description="Error message if any returned after attempting to execute code")
     should_continue: Optional[bool] = Field(default=False,description="Boolean used to decide whether or not to continue to next step")
+    code_iterations_limit: Optional[int] = Field(default=3,description="Number of iterations during automated code generation and review to prevent infinite recursion, default 3")
+    human_approval_flag: Optional[str] = Field(default="",description="Yes/no flag for whether human reviewed code should continue")
+    human_feedback: Optional[str] = Field(default="",description="If human approval is flagged as no, add in feedback")
 
 
 # Load agents & tools
@@ -95,6 +109,7 @@ def should_review(state):
 def code_review_router(state, max_iter=3):
     # Determines the next step based on code review status and iteration count
     should_continue = state.should_continue
+    max_iter = state.code_iterations_limit
     iterations = state.iterations
     step, _, _ = review_step(state)
     # If review is positive, continue the workflow
@@ -113,6 +128,7 @@ def human_review_router(state, max_iter=3):
     # Manages the flow after human review, checking for approval and iteration count
     iterations = state.iterations
     should_continue = state.should_continue
+    max_iter = state.code_iterations_limit
     step, _, _ = review_step(state)
     # If human review is approved, proceed
     if should_continue == True:
@@ -223,10 +239,11 @@ def create_graph_no_human_review(**kwargs):
     workflow.add_node("review_agent", review_agent.call_model)
 
     # Print Final End State
-    workflow.add_node("print_final", lambda state: print(f"""Table Creation Code:
+    workflow.add_node("clear_messages", lambda state: setattr(state, 'messages', []))
+    workflow.add_node("print_final", lambda state: (print(f"""Table Creation Code:
         {state.table_creation_code}
-    Data Upsertion Code: 
-        {state.data_upsertion_code}"""))
+        Data Upsertion Code: 
+        {state.data_upsertion_code}""")))
 
     # Add Edges - defines the flow between different nodes based on the task completion
     workflow.set_entry_point("extract_block_data_agent")
@@ -234,6 +251,7 @@ def create_graph_no_human_review(**kwargs):
     workflow.add_edge("table_creation_code_agent", "tools_for_table_creation")
     workflow.add_edge("data_upsertion_code_agent", "review_agent")
     workflow.add_edge("indexer_entities_agent", "table_creation_code_agent")
+    workflow.add_edge("clear_messages", "print_final")
     workflow.add_edge("print_final", END)
 
     # Conditional Edges - these edges define the flow based on conditions evaluated at runtime
@@ -261,7 +279,7 @@ def create_graph_no_human_review(**kwargs):
         {
             "Completed Extract Block Data": "indexer_entities_agent",
             "Completed Table Creation": "data_upsertion_code_agent",
-            "Completed Data Upsertion": "print_final",
+            "Completed Data Upsertion": "clear_messages",
             "Repeat Extract Block Data": "extract_block_data_agent",
             "Repeat Indexer Entities": "indexer_entities_agent",
             "Repeat Table Creation": "table_creation_code_agent",

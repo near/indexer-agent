@@ -341,6 +341,51 @@ def block_extractor_agent_model_v3(tools):
                 "
                 """.replace('{','{{').replace('}','}}')
             ),
+            ( # Few shot example with near social
+                "human",
+                """
+                Provide the javascript code for parsing out actions and decoded arguments from block actions and filter down to only successful receipts using the receiverId 'social.near' 
+                in order to build a feed indexer that tracks posts, commets, and post likes. Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
+                replaced with their escaped version (\\\\n) to make these strings valid for JSON. Ensure that you output correct Javascript Code.
+                """
+            ),   
+            (
+                "ai",
+                """
+                js: `const SOCIAL_DB = "social.near";
+                function base64decode(encodedValue) {
+                let buff = Buffer.from(encodedValue, "base64");
+                return JSON.parse(buff.toString("utf-8"));
+                }
+
+                const nearSocialPosts = block
+                .actions()
+                .filter((action) => action.receiverId === SOCIAL_DB)
+                .flatMap((action) =>
+                    action.operations
+                    .map((operation) => operation["FunctionCall"])
+                    .filter((operation) => operation?.methodName === "set")
+                    .map((functionCallOperation) => {
+                        try {
+                        const decodedArgs = base64decode(functionCallOperation.args);
+                        return {
+                            accountId: Object.keys(decodedArgs.data)[0],
+                            data: decodedArgs.data[Object.keys(decodedArgs.data)[0]]
+                        };
+                        } catch (error) {
+                        console.log("Failed to decode function call args", functionCallOperation, error);
+                        }
+                    })
+                );
+
+                return nearSocialPosts;`
+                explanation: "
+                The provided Python code snippet is part of a larger script designed to process blockchain transactions related to a specific Near account (SOCIAL_DB = "social.near"). 
+                It filters transactions to identify those interacting with the social.near account, specifically focusing on FunctionCall operations that invoke the set method on the SocialDB contract. 
+                The code extracts and decodes arguments from these transactions to retrieve the account ID and associated data, handling errors in decoding gracefully. This process aims to isolate and 
+                prepare relevant transactional data for further processing or querying by applications, leveraging asynchronous execution for efficiency.
+                """.replace('{','{{').replace('}','}}')
+            ), 
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
     ).partial(format_instructions=jsreponse_parser.get_format_instructions())
@@ -375,6 +420,8 @@ class BlockExtractorAgent:
         should_continue = state.should_continue
         error = state.error
         block_data_extraction_code = state.block_data_extraction_code
+        block_limit = state.block_limit
+        previous_day_limit = state.previous_day_limit
         # If iterations is none this is the initialization of states
         if iterations == None:
             iterations = 0
@@ -388,7 +435,7 @@ class BlockExtractorAgent:
             error=""
             should_continue= False
         if len(messages) == 0: # Add the original prompt if this is the beginning of message history
-            messages = [HumanMessage(content=state.original_prompt)]
+            messages = [HumanMessage(content=f'{state.original_prompt} for the last {previous_day_limit} days with a max of {block_limit} blocks')]
         if error != "":
             reflection_msg = f"""You tried to run the following Javascript function and returned an error. Change the javascript function code based on the feedback.
             Javascript function: {block_data_extraction_code}

@@ -15,24 +15,9 @@ class EntityResponse(BaseModel):
     data: str = Field(description="Specific data that should be included for each entity")
     explanation: str = Field(description="How did the agent come up with this answer?")
 
-# class EntityResponse(BaseModel):
-#     """Final answer to the user"""
-#     entities: Dict[str, Dict[str, Any]] = Field(default_factory=dict,description="The final list of entities that we should design the indexer to track, along with specific data and reasoning for each")
-
 entity_response_parser = PydanticOutputParser(pydantic_object=EntityResponse)
 
-def fetch_query_api_examples(directory):
-    query_api_examples = ""
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if file.endswith(".txt"):
-                with open(os.path.join(root, file), 'r') as f:
-                    query_api_examples += f.read()
-    return query_api_examples.replace('{', '{{').replace('}', '}}')
-
 def indexer_entities_agent_model():
-    print('fetching queryapi docs')
-    query_api_tutorials = fetch_query_api_examples('./query_api_docs/tutorials')
     # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -48,10 +33,6 @@ def indexer_entities_agent_model():
                 The result should be an EntityResponse. Ensure all nested structures are converted to strings.
                 ''',
             ),
-            # (
-            #     "system",
-            #     "Here are several tutorials from documentation on how to define indexing logic filtering blockchain transactions and saving the data to the database:" + query_api_tutorials,
-            # ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
     ).partial(format_instructions=entity_response_parser.get_format_instructions())
