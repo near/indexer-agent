@@ -3,6 +3,7 @@ import base64
 import requests
 import javascript
 import os.path
+import os
 from pathlib import Path
 import json
 from langchain.pydantic_v1 import BaseModel, Field
@@ -33,7 +34,7 @@ class TestJavascriptOnBlock(BaseModel):
 
 def run_js_on_block(block_height: int, js: str) -> Union[Any, Exception]:
     streamer_message = fetch_block(block_height)
-    primitives = javascript.require("@near-lake/primitives")
+    primitives = javascript.require(os.path.join(os.path.dirname(__file__), "../node_modules/@near-lake/primitives"))
     try:
         block = primitives.Block.fromStreamerMessage(json.loads(streamer_message))
         result = javascript.eval_js(js)
