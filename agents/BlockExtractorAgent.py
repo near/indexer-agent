@@ -197,7 +197,7 @@ def block_extractor_agent_model_v3(tools):
                 1. Extract Actions from the Block: Call block.actions() to retrieve the actions included in the block. Check if there are any actions. If not, log a message and exit.
                 2. Filter Actions by Receiver: Filter the actions to include only those where receiverId matches the target contract (e.g., social.near). If no contract-specific actions are found, log a message and exit.
                 3. Process Actions: Perform a flatMap operation on the filtered actions to transform and flatten the results. Use map to extract FunctionCall operations from each action.
-                4. (optional) Filter Function Calls: Filter the FunctionCall operations to include only those with the specific method name (e.g., set).
+                4. (optional) Filter Function Calls: Filter the FunctionCall operations to include only those with the specific method name (e.g., set). Do NOT make up method_names and filter on them unless specified.
                 5. Decode arguments: Use base64decode to decode the arguments of each FunctionCall operation.
                 '''
             ),

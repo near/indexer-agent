@@ -98,6 +98,8 @@ class ReviewAgent:
         # Provide examples for guidance based on the review step
         if step == "Extract Block Data":
             # Example code for extracting block data
+            new_message.append(HumanMessage(content=f"""Resulted in the following schema: {entity_schema}.
+                                            If the entity schema is a simple array, attempt to parse the data again."""))
             example_benchmark_2 = get_example_extract_block_code().replace("\\n","\\\\n").replace("{","{{").replace("}","}}")
             new_message.append(HumanMessage(content=f"""Please use the following correctly working examples as
                 guidline for reviewing JavaScript code:

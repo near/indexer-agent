@@ -65,7 +65,7 @@ class GraphState(BaseModel):
 
 # Load agents & tools
 # Block Extractor Agent
-block_extractor_tools = [tool_js_on_block_schema_func, tool_infer_schema_of_js]
+block_extractor_tools = [tool_js_on_block_schema_func, tool_infer_schema_of_js,tool_get_block_heights]
 block_extractor_model = block_extractor_agent_model_v3(block_extractor_tools) # v2 adds the jsresponse parser to prompt
 block_extractor_agent = BlockExtractorAgent(block_extractor_model,ToolExecutor(block_extractor_tools))
 
