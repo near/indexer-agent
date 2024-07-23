@@ -9,6 +9,7 @@ The NEAR Indexer AI Assistant is a powerful tool designed to simplify and automa
 Initial POC of Indexer Agent utilizing LangChain's [Langgraph](https://python.langchain.com/v0.1/docs/langgraph/), to automate the creation of indexers by filtering to specific contracts, inferring schemas from function calls, and generating working code to insert data into postgreSQL database.
 
 ## Setup
+### Python
 - `pip install -r requirements.txt`
 - You will need to setup accounts with OpenAI and Langchain
 - Create an .env file with the following: 
@@ -18,6 +19,8 @@ Initial POC of Indexer Agent utilizing LangChain's [Langgraph](https://python.la
     LANGCHAIN_API_KEY=<LANGCHAIN_API_KEY>  
     LANGCHAIN_PROJECT=<LANGCHAIN_PROJECT>  
 ```
+
+### PostgreSQL
 - When setting up postgresql to run locally follow these steps
 brew install postgresql
 brew services start postgresql
@@ -25,6 +28,9 @@ psql postgres
 CREATE ROLE username WITH LOGIN PASSWORD 'password';
 CREATE DATABASE db OWNER username;
 GRANT ALL PRIVILEGES ON DATABASE db TO username;
+
+### Node Modules
+- Run `npm install` in root directory to update node modules like @near-lake/primitives
 
 ## Structure
 Below is a brief overview of the key files and directories within the Indexer Agent project:
