@@ -8,7 +8,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolExecutor,ToolInvocation
 
 # Local Imports
-from agents.BlockExtractorAgent import BlockExtractorAgent,block_extractor_agent_model_v3
+from agents.BlockExtractorAgent import BlockExtractorAgent,block_extractor_agent_model
 from agents.TableCreationAgent import table_creation_code_model_v2,TableCreationAgent
 from agents.DataUpsertionAgent import data_upsertion_code_model,DataUpsertionCodeAgent
 from agents.IndexerEntitiesAgent import indexer_entities_agent_model,IndexerEntitiesAgent,EntityResponse
@@ -66,7 +66,7 @@ class GraphState(BaseModel):
 # Load agents & tools
 # Block Extractor Agent
 block_extractor_tools = [tool_js_on_block_schema_func, tool_infer_schema_of_js,tool_get_block_heights]
-block_extractor_model = block_extractor_agent_model_v3(block_extractor_tools) # v2 adds the jsresponse parser to prompt
+block_extractor_model = block_extractor_agent_model(block_extractor_tools) # v2 adds the jsresponse parser to prompt
 block_extractor_agent = BlockExtractorAgent(block_extractor_model,ToolExecutor(block_extractor_tools))
 
 # Indexer Entities Agent

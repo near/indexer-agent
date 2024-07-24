@@ -40,116 +40,8 @@ def sanitized_schema_for(block_height: int, js: str) -> str:
     return res.replace('{', '{{').replace('}', '}}')
 
 def block_extractor_agent_model(tools):
-
-    # Define the prompt for the agent
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                '''You are a JavaScript software engineer working with NEAR Protocol. You are only writing pure
-                JS function `extractData` that accepts a block object and returns a result. You can only use standard JavaScript functions
-                and no TypeScript.
-                
-                To check if a receipt is successful, you can check whether receipt.status.SuccessValue key is present.
-                
-                To get a js_schema of the result, make sure to use a Run_Javascript_On_Block_Schema tool on 
-                sample blocks that you can get using tool_get_block_heights in then past 5 days.
-                by invoking generated JS function using `block` variable.
-                
-                Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
-                replaced with their escaped version (\\\\n) to make these strings valid for JSON.
-                ''',
-            ),
-            (
-                "system",
-                "`block.actions()` that has following schema:"
-                + sanitized_schema_for(119688212, 'return block.actions()'),
-            ),
-            (
-                "system",
-                "`block.receipts()` that has following schema:"
-                + sanitized_schema_for(119688212, 'return block.receipts()'),
-            ),
-            (
-                "system",
-                "`block.header()` that has following schema:"
-                + sanitized_schema_for(119688212, 'return block.header()'),
-            ),
-            MessagesPlaceholder(variable_name="messages", optional=True),
-        ]
-    )
-
-    # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4", temperature=0, streaming=True,)
-
-    # Create the tools to bind to the model
-    tools = [convert_to_openai_function(t) for t in tools]
-    tools.append(convert_to_openai_function(JsResponse))
-
-    model = ({"messages": RunnablePassthrough()}
-             | prompt
-             | llm.bind_tools(tools, tool_choice="any")
-             )
-
-    return model
-
-def block_extractor_agent_model_v2(tools):
-    # Define the prompt for the agent
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                '''You are a JavaScript software engineer working with NEAR Protocol. You are only writing pure
-                JS function `extractData` that accepts a block object and returns a result. You can only use standard JavaScript functions
-                and no TypeScript. Do not use forEach function.
-
-                Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
-                replaced with their escaped version (\\\\n) to make these strings valid for JSON. Ensure that you output correct Javascript Code.
-                To check if a receipt is successful, you can check whether receipt.status.SuccessValue key is present.
-                To get a js_schema of the result, make sure to use a Run_Javascript_On_Block_Schema tool on 
-                sample blocks that you can get using tool_get_block_heights in the past 5 days.
-                by invoking generated JS function using `block` variable. 
-                 
-                Use the below best practices:
-                 
-                1. Always use explicit boolean statements and avoid implicit conversions.
-                2. Use array methods such as flatMap, map, and filter to efficiently transform and filter blockchain actions. These methods help create concise and expressive code, making it easier to manage and understand the flow of data processing.
-                3. Implement thorough error handling and logging throughout your code. This practice is crucial for debugging and maintaining the application. By catching potential errors and logging them, you ensure that issues can be diagnosed and resolved without causing unexpected crashes.
-                4. Validate the structure and content of data before processing it. This step is essential to ensure that the data meets the expected format and to prevent runtime errors. Proper data validation helps maintain data integrity and ensures that only the correct data is processed.
-                5. Use asynchronous functions (async/await) to handle input/output operations, such as fetching data from the blockchain or interacting with a database. Asynchronous processing keeps the application responsive and allows it to handle multiple tasks concurrently without blocking the execution flow.
-                6. Encapsulate specific functionalities into separate functions. This modular approach improves the readability and maintainability of your code. By breaking down complex processes into smaller, manageable functions, you make the code easier to test, debug, and extend.
-                ''',
-            ),
-            (
-                "system",
-                '''Note the following schema for each block that will be useful for parsing out the data:
-                `block.actions()` that has following schema:
-                `{"type": "array", "items": {"type": "object", "properties": {"receiptId": {"type": "string"}, "predecessorId": {"type": "string"}, "receiverId": {"type": "string"}, "signerId": {"type": "string"}, "signerPublicKey": {"type": "string"}, "operations": {"type": "array", "items": {"type": "object", "properties": {"Delegate": {"type": "object", "properties": {"delegateAction": {"type": "object", "properties": {"actions": {"type": "array", "items": {"type": "object", "properties": {"FunctionCall": {"type": "object", "properties": {"args": {"type": "string"}, "deposit": {"type": "string"}, "gas": {"type": "integer"}, "methodName": {"type": "string"}}}}}}, "maxBlockHeight": {"type": "integer"}, "nonce": {"type": "integer"}, "publicKey": {"type": "string"}, "receiverId": {"type": "string"}, "senderId": {"type": "string"}}}, "signature": {"type": "string"}}}}}}}}}`
-                `block.receipts()` that has the following schema:
-                `{"type": "array", "items": {"type": "object", "properties": {"receiptKind": {"type": "string"}, "receiptId": {"type": "string"}, "receiverId": {"type": "string"}, "predecessorId": {"type": "string"}, "status": {"type": "object", "properties": {"SuccessValue": {"type": "string"}}}, "executionOutcomeId": {"type": "string"}, "logs": {"type": "array"}}}}`
-                `block.header()` that has following schema:
-                `{"type": "object", "properties": {"height": {"type": "integer"}, "hash": {"type": "string"}, "prevHash": {"type": "string"}, "author": {"type": "string"}, "timestampNanosec": {"type": "string"}, "epochId": {"type": "string"}, "nextEpochId": {"type": "string"}, "gasPrice": {"type": "string"}, "totalSupply": {"type": "string"}, "latestProtocolVersion": {"type": "integer"}, "randomValue": {"type": "string"}, "chunksIncluded": {"type": "integer"}, "validatorProposals": {"type": "array"}}}`
-                '''.replace('{','{{').replace('}','}}')
-            ),
-            MessagesPlaceholder(variable_name="messages", optional=True),
-        ]
-    ).partial(format_instructions=jsreponse_parser.get_format_instructions())
-
-    # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True)
-
-    # Create the tools to bind to the model
-    tools = [convert_to_openai_function(t) for t in tools]
-
-    model = ({"messages": RunnablePassthrough()}
-             | prompt
-             | llm.bind_tools(tools, tool_choice="any")
-             )
-
-    return model
-
-def block_extractor_agent_model_v3(tools):
-
+    with open('../node_modules/@near-lake/primitives/dist/src/types/block.js', 'r') as file:
+        block_primitive = file.read()
     # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -186,25 +78,27 @@ def block_extractor_agent_model_v3(tools):
 
                 You will need to run multiple tool steps, after each step return the output and think about what to do next.
                 1. Use the tool get_block_heights to pull the list of relevant block heights depending on the input receiver provided by the user.
-                2. Filter block.actions() down to receiver and call tool_infer_schema_of_js on all block_heights from step 1. Also add all fields from args that are decoded from base64-encoded.
+                2. Use block.functionCallsToReceiver('receiver') to filter to receiver and call tool_infer_schema_of_js on all block_heights from step 1.
 
                 '''.replace('{','{{').replace('}','}}')
+            ),
+            (
+                "system",
+                f'''Note the following block primitive from near lake: {block_primitive}'''.replace('{','{{').replace('}','}}')
             ),
             (
                 "human",
                 '''
                 instructions for parsing out a block when using tool_infer_schema_of_js
-                1. Extract Actions from the Block: Call block.actions() to retrieve the actions included in the block. Check if there are any actions. If not, log a message and exit.
-                2. Filter Actions by Receiver: Filter the actions to include only those where receiverId matches the target contract (e.g., social.near). If no contract-specific actions are found, log a message and exit.
-                3. Process Actions: Perform a flatMap operation on the filtered actions to transform and flatten the results. Use map to extract FunctionCall operations from each action.
-                4. (optional) Filter Function Calls: Filter the FunctionCall operations to include only those with the specific method name (e.g., set). Do NOT make up method_names and filter on them unless specified.
-                5. Decode arguments: Use base64decode to decode the arguments of each FunctionCall operation.
+                1. Extract data from the Block: Call block.functionCallsToReceiver('receiver') to retrieve the data included in the block. Check if there anything is returned, if not, log a message and exit.
+                2. Decode arguments: Use base64decode to decode the arguments of each FunctionCall operation.
+                3. Do NOT filter on specific method names unless specified otherwise. Do NOT make up method_names.
                 '''
             ),
             ( # One shot example
                 "human",
                 """
-                Provide the javascript code for parsing out actions and decoded arguments from block actions and filter down to only successful receipts using the receiverId 'receiver'. 
+                Provide the javascript code for parsing out actions and decoded arguments from the block and filter down to only successful receipts using the receiverId 'receiver'. 
                 Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) replaced with their escaped version (\\\\n) to make these strings valid for JSON. 
                 Ensure that you output correct Javascript Code.
                 """
@@ -213,33 +107,19 @@ def block_extractor_agent_model_v3(tools):
                 "ai",
                 """
                 js: 
-                `function base64decode(encodedValue) {
-                    let buff = Buffer.from(encodedValue, "base64");
-                    return JSON.parse(buff.toString("utf-8"));
-                }
-                const successfulReceipts = block.receipts()
-                    .filter(receipt => receipt.receiverId === 'receiver') 
-                    .filter(receipt => receipt.status.SuccessValue !== undefined)
-                    .map(receipt => receipt.receiptId);
-
-                let decodedActions = block.actions()
-                    .filter(action => successfulReceipts.includes(action.receiptId))
-                    .map(action => {
-                        let updatedAction = { ...action, operations: action.operations.map(op => {
-                            if (op.FunctionCall) {
-                                try {
-                                    let updatedFunctionCall = { ...op.FunctionCall };
-                                    updatedFunctionCall.args = base64decode(op.FunctionCall.args);
-                                    return { ...op, FunctionCall: updatedFunctionCall }; 
-                                } catch (error) {
-                                    return op;
-                                }
-                            }
-                            return op;
-                        })};
-                        return updatedAction;
-                    });
-                return decodedActions`
+                `let decodedActions = block.functionCallsToReceiver('receiver').map(fxnCallView => {
+                    let decodedArgs;
+                    try {
+                    decodedArgs = fxnCallView.argsAsJSON(); // Decode the entire args assuming it's a JSON string
+                    } catch (error) {
+                    decodedArgs = fxnCallView.args; // Handle cases where decoding fails
+                    }
+                    return {
+                    ...fxnCallView, // Spread the original fxnCallView object to retain all its properties
+                    args: decodedArgs // Replace the args property with the decoded version
+                    };
+                });
+                return decodedActions;`
                 js_schema: 
                     `{
                         "type": "array",
@@ -331,13 +211,9 @@ def block_extractor_agent_model_v3(tools):
                         }
                     }`
                 explanation: "
-                The selected JavaScript code snippet is designed to decode and process blockchain action data. Here's a step-by-step description of what it does:
-                Define a base64decode function: This function takes a base64 encoded string as input, decodes it to a buffer, and then parses the buffer as a JSON object. This is useful for decoding encoded blockchain data that is often stored in base64 format.
-                Filter and Map block.actions(): The code starts by calling block.actions() to retrieve a list of actions from a blockchain block. It then filters these actions to only include those where the receiverId matches a specified receiver. This is likely filtering actions to focus on those relevant to a specific account or contract.
-                Process Each Action: For each filtered action, the code creates a new object (updatedAction) that copies all properties from the original action. It specifically focuses on processing the operations array within each action.
-                Process Each Operation in an Action: For each operation in the operations array of an action, the code checks if the operation is a FunctionCall. If it is, the code attempts to decode the args property of the FunctionCall using the previously defined base64decode function. This decoded args object replaces the original encoded args in a new updatedFunctionCall object, which is then used to create a new operation object that includes the decoded arguments. This new operation object replaces the original operation object in the operations array of the updatedAction.
-                Error Handling: If an error occurs during the decoding of the args property (for example, if the encoded data is not valid JSON), the original operation object is returned unchanged. This ensures that the process can continue even if some data cannot be decoded.
-                Return Processed Actions: Finally, the code returns a list of decodedActions, where each action has its operations potentially modified to include decoded arguments for any FunctionCall operations.
+                The selected JavaScript code snippet is designed return blockchain data. The functionCallsToReceiver parses data to retrieve a list of actions from a block. It filters to only include those where the receiverId matches a specified receiver. 
+                It fetches function calls from the specific receiver, map method is then used to iterate over each function call view. For each function call, it tries to decode the args field using argsAsJSON method from NEAR Lake primitives. If decoding is successful
+                the decoded arguments are stored in the decodedArgs. Finally, the code returns a list of decodedActions, where each action has its operations potentially modified to include decoded arguments for any FunctionCall operations.
                 "
                 """.replace('{','{{').replace('}','}}')
             ),
@@ -353,37 +229,25 @@ def block_extractor_agent_model_v3(tools):
                 "ai",
                 """
                 js: `const SOCIAL_DB = "social.near";
-                function base64decode(encodedValue) {
-                let buff = Buffer.from(encodedValue, "base64");
-                return JSON.parse(buff.toString("utf-8"));
-                }
-
-                const nearSocialPosts = block
-                .actions()
-                .filter((action) => action.receiverId === SOCIAL_DB)
-                .flatMap((action) =>
-                    action.operations
-                    .map((operation) => operation["FunctionCall"])
-                    .filter((operation) => operation?.methodName === "set")
-                    .map((functionCallOperation) => {
-                        try {
-                        const decodedArgs = base64decode(functionCallOperation.args);
-                        return {
-                            accountId: Object.keys(decodedArgs.data)[0],
-                            data: decodedArgs.data[Object.keys(decodedArgs.data)[0]]
-                        };
-                        } catch (error) {
-                        console.log("Failed to decode function call args", functionCallOperation, error);
-                        }
-                    })
-                );
-
+                let nearSocialPosts = block.functionCallsToReceiver(SOCIAL_DB).map(fxnCallView => {
+                    let decodedArgs;
+                    try {
+                        decodedArgs = fxnCallView.argsAsJSON(); // Decode the entire args assuming it's a JSON string
+                    } catch (error) {
+                        decodedArgs = fxnCallView.args; // Handle cases where decoding fails
+                    }
+                    return {
+                        ...fxnCallView, // Spread the original fxnCallView object to retain all its properties
+                        args: decodedArgs // Replace the args property with the decoded version
+                    };
+                });
                 return nearSocialPosts;`
                 explanation: "
-                The provided Python code snippet is part of a larger script designed to process blockchain transactions related to a specific Near account (SOCIAL_DB = "social.near"). 
-                It filters transactions to identify those interacting with the social.near account, specifically focusing on FunctionCall operations that invoke the set method on the SocialDB contract. 
-                The code extracts and decodes arguments from these transactions to retrieve the account ID and associated data, handling errors in decoding gracefully. This process aims to isolate and 
-                prepare relevant transactional data for further processing or querying by applications, leveraging asynchronous execution for efficiency.
+                The provided JavaScript code snippet is designed to process blocks related to a specific Near account (SOCIAL_DB = "social.near"). 
+                It filters to fetch function calls from interacting with the social.near account, map method is then used to iterate over each function call view.
+                For each function call, it tries to decode the args field using argsAsJSON method from NEAR Lake primitives. If decoding is successful
+                the decoded arguments are stored in the decodedArgs. The final result is an array of function calls with decoded arguments.
+                
                 """.replace('{','{{').replace('}','}}')
             ), 
             MessagesPlaceholder(variable_name="messages", optional=True),

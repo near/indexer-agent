@@ -99,12 +99,12 @@ class ReviewAgent:
         if step == "Extract Block Data":
             # Example code for extracting block data
             new_message.append(HumanMessage(content=f"""Resulted in the following schema: {entity_schema}.
-                                            If the entity schema is a simple array, attempt to parse the data again."""))
-            example_benchmark_2 = get_example_extract_block_code().replace("\\n","\\\\n").replace("{","{{").replace("}","}}")
-            new_message.append(HumanMessage(content=f"""Please use the following correctly working examples as
-                guidline for reviewing JavaScript code:
-                Example 2: {example_benchmark_2}
-                """))
+                                            If the entity schema is a simple array, attempt to parse the data again or use different block height."""))
+            # example_benchmark_2 = get_example_extract_block_code().replace("\\n","\\\\n").replace("{","{{").replace("}","}}")
+            # new_message.append(HumanMessage(content=f"""Please use the following correctly working examples as
+            #     guidline for reviewing JavaScript code:
+            #     Example 2: {example_benchmark_2}
+            #     """))
             error = "" # Reset error after providing examples
         elif step == "Indexer Logic":
             # Example code for indexer logic
