@@ -299,7 +299,7 @@ class BlockExtractorAgent:
             error=""
             should_continue= False
         if len(messages) == 0: # Add the original prompt if this is the beginning of message history
-            messages = [HumanMessage(content=f'{state.original_prompt} for the last {previous_day_limit} days with a max of {block_limit} blocks')]
+            messages = [HumanMessage(content=f'{state.original_prompt}. Pull block_heights for the last {previous_day_limit} days with a max of {block_limit} blocks')]
         if error != "":
             reflection_msg = f"""You tried to run the following Javascript function and returned an error. Change the javascript function code based on the feedback.
             Javascript function: {block_data_extraction_code}
@@ -342,7 +342,7 @@ class BlockExtractorAgent:
             if function_message.name == 'tool_get_block_heights':
                 # If the function message is about retrieving block heights, store its content in block_heights variable
                 try:
-                    block_heights = ast.literal_eval(function_message.content)
+                    block_heights.extend(ast.literal_eval(function_message.content))
                 except (ValueError, SyntaxError):
                     block_heights = []
             elif function_message.name == 'tool_js_on_block_schema_func' or function_message.name == 'tool_infer_schema_of_js':

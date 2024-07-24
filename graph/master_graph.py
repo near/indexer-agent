@@ -116,7 +116,7 @@ def code_review_router(state, max_iter=3):
     if should_continue:
         print(f"Completed {step}")
         return f"Completed {step}"
-    elif iterations > max_iter:
+    elif iterations > max_iter+1:
         # Limit the number of iterations to avoid infinite loops
         print("Completed 3 Iterations: Exiting to avoid infinite looping.")
         return "end"
@@ -133,7 +133,7 @@ def human_review_router(state, max_iter=3):
     # If human review is approved, proceed
     if should_continue == True:
         return f"Completed {step}"
-    elif iterations > max_iter:
+    elif iterations > max_iter+1:
         # End the process if maximum iterations are reached
         return "end"
     else:

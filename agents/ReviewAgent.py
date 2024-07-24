@@ -90,11 +90,14 @@ class ReviewAgent:
         block_data_extraction_code = state.block_data_extraction_code
         error = state.error
         entity_schema = state.entity_schema
+        
         # Determine the current step, the code to review, and its type
         step, code, code_type = review_step(state)
+        
         # Create a new message prompting for review of the code
         new_message = [HumanMessage(content=f"""Review this {code_type} code: {code}
             {error}""")]
+        
         # Provide examples for guidance based on the review step
         if step == "Extract Block Data":
             # Example code for extracting block data
@@ -114,6 +117,11 @@ class ReviewAgent:
                 Example: {example_indexer}
                 """))
             error = "" # Reset error after providing examples
+        elif step == "Data Upsertion":
+            new_message.append(HumanMessage(content=f"""Make sure the Javascript code has at least 1 context.db function for every table in the corresponding PostgreSQL code.
+                Here is the corresponding PostgreSQL code: {state.table_creation_code}"""))
+            new_message.append(HumanMessage(content=f"""Also make sure that there is an explicit constraint specified when matching on conflict."""))
+            error = "" # Reset error after providing examples
         # Update the messages with the new message
         messages = messages + new_message # testing out
         # Invoke the model with the updated messages for review
@@ -125,9 +133,12 @@ class ReviewAgent:
             print(f"Code is not valid. Repeating: {step}.")
             # Increment iterations
             iterations += 1
+            # Update error with the latest explanation
+            error = response.explanation
         else:
-            #Reset iterations to 0
+            #Reset iterations and error message
             iterations = 0
+            error = "" 
         # Wrap the model's response in a system message
         wrapped_message = SystemMessage(content=str(response))
 
