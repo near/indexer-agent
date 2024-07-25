@@ -1,5 +1,6 @@
 import json
 import ast
+import os
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.utils.function_calling import convert_to_openai_function
@@ -40,7 +41,9 @@ def sanitized_schema_for(block_height: int, js: str) -> str:
     return res.replace('{', '{{').replace('}', '}}')
 
 def block_extractor_agent_model(tools):
-    with open('../node_modules/@near-lake/primitives/dist/src/types/block.js', 'r') as file:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    file_path = os.path.join(base_dir, 'node_modules/@near-lake/primitives/dist/src/types/block.js')
+    with open(file_path, 'r') as file:
         block_primitive = file.read()
     # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
