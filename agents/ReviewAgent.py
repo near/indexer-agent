@@ -102,25 +102,21 @@ class ReviewAgent:
         if step == "Extract Block Data":
             # Example code for extracting block data
             new_message.append(HumanMessage(content=f"""Resulted in the following schema: {entity_schema}.
-                                            If the entity schema is a simple array, attempt to parse the data again or use different block height."""))
-            # example_benchmark_2 = get_example_extract_block_code().replace("\\n","\\\\n").replace("{","{{").replace("}","}}")
-            # new_message.append(HumanMessage(content=f"""Please use the following correctly working examples as
-            #     guidline for reviewing JavaScript code:
-            #     Example 2: {example_benchmark_2}
-            #     """))
+                If the entity schema is a simple array, attempt to parse the data again or use different block height.""".replace('{','{{').replace('}','}}')))
             error = "" # Reset error after providing examples
         elif step == "Indexer Logic":
             # Example code for indexer logic
             example_indexer = get_example_indexer_logic().replace("\\n","\\\\n").replace("{","{{").replace("}","}}")
             new_message.append(HumanMessage(content=f"""Please use the following correctly working examples as
                 guidline for reviewing JavaScript code:
-                Example: {example_indexer}
-                """))
+                Example: {example_indexer}""".replace('{','{{').replace('}','}}')))
             error = "" # Reset error after providing examples
         elif step == "Data Upsertion":
             new_message.append(HumanMessage(content=f"""Make sure the Javascript code has at least 1 context.db function for every table in the corresponding PostgreSQL code.
-                Here is the corresponding PostgreSQL code: {state.table_creation_code}"""))
-            new_message.append(HumanMessage(content=f"""Also make sure that there is an explicit constraint specified when matching on conflict."""))
+                Here is the corresponding PostgreSQL code: {state.table_creation_code}.
+                If using an context.db upsert call, make sure that there is an explicit constraint specified and use the format: `context.db.TableName.upsert(Objects, [conflictColumn1,conflictColumn2], [updateColumn1,updateColumn2]);`
+                where the Objects parameter is either one or an array of objects. The other two parameters are arrays of strings. The strings should correspond to column names for that table.
+                Do not wrap the arrays in an object.""".replace('{','{{').replace('}','}}')))
             error = "" # Reset error after providing examples
         # Update the messages with the new message
         messages = messages + new_message # testing out
