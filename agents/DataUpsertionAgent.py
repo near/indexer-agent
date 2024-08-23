@@ -1,7 +1,7 @@
 # Define the response schema for our agent
 import json
 import os
-from prompts import (
+from .prompts import (
     data_upsertion_system_prompt,
     data_upsertion_nearcrowd_prompt,
     data_upsertion_near_social_prompt,

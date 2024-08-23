@@ -1,5 +1,5 @@
 import json
-from prompts import table_creation_system_prompt, table_creation_near_social_prompt
+from .prompts import table_creation_system_prompt, table_creation_near_social_prompt
 
 # Define the response schema for our agent
 from langchain_core.pydantic_v1 import BaseModel, Field

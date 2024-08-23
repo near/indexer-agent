@@ -1,6 +1,6 @@
 import json
 import os
-from prompts import indexer_entities_system_prompt
+from .prompts import indexer_entities_system_prompt
 from typing import Dict, List, Any
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI

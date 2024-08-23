@@ -1,7 +1,7 @@
 import json
 import ast
 import os
-from prompts import (
+from .prompts import (
     block_extractor_system_prompt,
     block_extractor_js_prompt,
     block_extractor_near_social_prompt,

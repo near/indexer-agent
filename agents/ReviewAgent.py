@@ -1,6 +1,6 @@
 import json
 import os
-from prompts import review_system_prompt
+from .prompts import review_system_prompt
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import ToolExecutor, ToolInvocation
