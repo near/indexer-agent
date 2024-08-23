@@ -1,4 +1,3 @@
-# External Libraries
 import json
 import operator
 from typing import TypedDict, Annotated, Sequence, Optional
@@ -6,8 +5,6 @@ from langchain_core.messages import BaseMessage, ToolMessage, SystemMessage
 from langchain.pydantic_v1 import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolExecutor, ToolInvocation
-
-# Local Imports
 from agents.BlockExtractorAgent import BlockExtractorAgent, block_extractor_agent_model
 from agents.TableCreationAgent import table_creation_code_model, TableCreationAgent
 from agents.DataUpsertionAgent import data_upsertion_code_model, DataUpsertionCodeAgent
@@ -21,12 +18,10 @@ from tools.database import tool_run_sql_ddl
 from tools.NearLake import tool_get_block_heights
 from tools.JavaScriptRunner import tool_js_on_block_schema_func, tool_infer_schema_of_js
 
-# Define Graphstate
-
 
 class GraphState(BaseModel):
     """
-    Represents the state of our graph.
+    Represents the state of the workflow graph used to manage the code generation process.
 
     Attributes:
         original_prompt: [Required] Original prompt of the beginning of the workflow
@@ -48,7 +43,7 @@ class GraphState(BaseModel):
         human_feedback: If human approval is flagged as no, add in feedback
     """
 
-    # Required to run
+    # Required Fields
     original_prompt: str = Field(description="Prompt of the beginning of the workflow")
     block_limit: int = Field(
         default=10,
@@ -59,7 +54,7 @@ class GraphState(BaseModel):
         description="Limit on number of previous days to pull block from, default 5 days",
     )
 
-    # Optional
+    # Optional Fields
     messages: Optional[Sequence[BaseMessage]] = Field(
         default=[],
         description="List of messages that track history interacting with agents",
@@ -111,56 +106,57 @@ class GraphState(BaseModel):
     )
 
 
-# Load agents & tools
-# Block Extractor Agent
+# Load Agents & Tools
 block_extractor_tools = [
     tool_js_on_block_schema_func,
     tool_infer_schema_of_js,
     tool_get_block_heights,
 ]
-block_extractor_model = block_extractor_agent_model(
-    block_extractor_tools
-)  # v2 adds the jsresponse parser to prompt
+block_extractor_model = block_extractor_agent_model(block_extractor_tools)
 block_extractor_agent = BlockExtractorAgent(
     block_extractor_model, ToolExecutor(block_extractor_tools)
 )
-
-# Indexer Entities Agent
 indexer_entities_model = indexer_entities_agent_model()
 indexer_entities_agent = IndexerEntitiesAgent(indexer_entities_model)
-
-# Table Creation Agent
 table_creation_tools = [tool_run_sql_ddl]
 table_creation_code_agent_model = table_creation_code_model(table_creation_tools)
 table_creation_code_agent = TableCreationAgent(
     table_creation_code_agent_model, ToolExecutor(table_creation_tools)
 )
-
-# DataUpsertion Agent
 data_upsertion_code_agent_model = data_upsertion_code_model()  # v2 no documentation
 data_upsertion_code_agent = DataUpsertionCodeAgent(data_upsertion_code_agent_model)
-
-# Review Agent
 review_agent_model = review_agent_model()
 review_agent = ReviewAgent(review_agent_model)
 
-# Define Logical Flow Functions
-
 
 def block_extractor_agent_router(state):
-    # Check if the entity schema has been successfully extracted
+    """
+    Routes the workflow depending on whether the entity schema has been successfully extracted.
+
+    Args:
+        state (GraphState): The current state of the workflow.
+
+    Returns:
+        str: A string indicating whether to continue to the next step or repeat the extraction process.
+    """
     entity_schema = state.entity_schema
-    # If entity schema is available, proceed to the next step
     if entity_schema != "":
         return "continue"
     else:
-        # If entity schema is not available, repeat the extraction process
         return "repeat"
 
 
 def should_review(state):
+    """
+    Decides whether the workflow should proceed to the review step based on the value of the should_continue flag.
+
+    Args:
+        state (GraphState): The current state of the workflow.
+
+    Returns:
+        str: A string indicating whether to continue to the review step or repeat the previous step.
+    """
     should_continue = state.should_continue
-    # If block schema is no longer null we review schema
     if should_continue == True:
         return "continue"
     else:
@@ -168,73 +164,84 @@ def should_review(state):
 
 
 def code_review_router(state, max_iter=3):
-    # Determines the next step based on code review status and iteration count
+    """
+    Routes the workflow after code review based on the review results and the number of iterations.
+
+    Args:
+        state (GraphState): The current state of the workflow.
+        max_iter (int): The maximum number of iterations allowed to avoid infinite looping, default is 3.
+
+    Returns:
+        str: A string indicating whether to continue, repeat a step, or end the process after code review.
+    """
     should_continue = state.should_continue
     max_iter = state.code_iterations_limit
     iterations = state.iterations
     step, _, _ = review_step(state)
-    # If review is positive, continue the workflow
     if should_continue:
         print(f"Completed {step}")
         return f"Completed {step}"
     elif iterations > max_iter + 1:
-        # Limit the number of iterations to avoid infinite loops
         print("Completed 3 Iterations: Exiting to avoid infinite looping.")
         return "end"
     else:
-        # If review is negative and iteration limit not reached, repeat the step
         return f"Repeat {step}"
 
 
 def human_review_router(state, max_iter=3):
-    # Manages the flow after human review, checking for approval and iteration count
+    """
+    Routes the workflow after human review based on the approval flag and the number of iterations.
+
+    Args:
+        state (GraphState): The current state of the workflow.
+        max_iter (int): The maximum number of iterations allowed to avoid infinite looping, default is 3.
+
+    Returns:
+        str: A string indicating whether to continue, repeat a step, or end the process after human review.
+    """
     iterations = state.iterations
     should_continue = state.should_continue
     max_iter = state.code_iterations_limit
     step, _, _ = review_step(state)
-    # If human review is approved, proceed
     if should_continue == True:
         return f"Completed {step}"
     elif iterations > max_iter + 1:
-        # End the process if maximum iterations are reached
         return "end"
     else:
-        # If not approved and max iterations not reached, repeat the step
         return f"Repeat {step}"
 
 
 # Define Graph
-
-
 def create_graph():
-    # Initializes the workflow graph with various agents and review steps
+    """
+    Initializes the workflow graph for automated code generation and review.
+
+    The graph includes nodes for various agents (block extraction, entity identification, table creation, and data upsertion),
+    tool nodes for executing tasks, and review nodes for automated and manual (human) review.
+
+    Returns:
+        StateGraph: The initialized workflow graph.
+    """
     workflow = StateGraph(GraphState)
 
-    # Agent Nodes - these nodes represent different agents handling specific tasks
+    # Nodes
     workflow.add_node("extract_block_data_agent", block_extractor_agent.call_model)
     workflow.add_node("indexer_entities_agent", indexer_entities_agent.call_model)
     workflow.add_node("table_creation_code_agent", table_creation_code_agent.call_model)
     workflow.add_node("data_upsertion_code_agent", data_upsertion_code_agent.call_model)
-
-    # Tool Nodes - nodes for calling specific tools during the block data extraction process
     workflow.add_node(
         "tools_for_block_data_extraction", block_extractor_agent.call_tool
     )
     workflow.add_node("tools_for_table_creation", table_creation_code_agent.call_tool)
-
-    # Review Nodes - nodes for reviewing the code automatically and manually (human review)
     workflow.add_node("review_agent", review_agent.call_model)
     workflow.add_node("human_review", review_agent.human_review)
 
-    # Add Edges - defines the flow between different nodes based on the task completion
+    # Edges
     workflow.set_entry_point("extract_block_data_agent")
     workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
     workflow.add_edge("table_creation_code_agent", "tools_for_table_creation")
     workflow.add_edge("data_upsertion_code_agent", "review_agent")
-    # Because indexer entities is just a string, does not need to code review
     workflow.add_edge("indexer_entities_agent", "human_review")
-
-    # Conditional Edges - these edges define the flow based on conditions evaluated at runtime
     workflow.add_conditional_edges(
         "tools_for_block_data_extraction",
         block_extractor_agent_router,
@@ -288,29 +295,28 @@ def create_graph():
     return workflow
 
 
-# Create a version without human review for langserve
-
-
 def create_graph_no_human_review(**kwargs):
-    # Initializes the workflow graph with various agents and review steps
+    """
+    Initializes the workflow graph for automated code generation and review without human intervention.
+
+    The graph includes nodes for various agents (block extraction, entity identification, table creation, and data upsertion),
+    tool nodes for executing tasks, and review nodes for automated code review. Human review is omitted. Used for langserve.
+
+    Returns:
+        StateGraph: The initialized workflow graph without human review.
+    """
     workflow = StateGraph(GraphState)
 
-    # Agent Nodes - these nodes represent different agents handling specific tasks
+    # Nodes
     workflow.add_node("extract_block_data_agent", block_extractor_agent.call_model)
     workflow.add_node("indexer_entities_agent", indexer_entities_agent.call_model)
     workflow.add_node("table_creation_code_agent", table_creation_code_agent.call_model)
     workflow.add_node("data_upsertion_code_agent", data_upsertion_code_agent.call_model)
-
-    # Tool Nodes - nodes for calling specific tools during the block data extraction process
     workflow.add_node(
         "tools_for_block_data_extraction", block_extractor_agent.call_tool
     )
     workflow.add_node("tools_for_table_creation", table_creation_code_agent.call_tool)
-
-    # Review Nodes - nodes for reviewing the code automatically and manually (human review)
     workflow.add_node("review_agent", review_agent.call_model)
-
-    # Print Final End State
     workflow.add_node("clear_messages", lambda state: setattr(state, "messages", []))
     workflow.add_node(
         "print_final",
@@ -324,7 +330,7 @@ def create_graph_no_human_review(**kwargs):
         ),
     )
 
-    # Add Edges - defines the flow between different nodes based on the task completion
+    # Edges
     workflow.set_entry_point("extract_block_data_agent")
     workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
     workflow.add_edge("table_creation_code_agent", "tools_for_table_creation")
@@ -332,8 +338,6 @@ def create_graph_no_human_review(**kwargs):
     workflow.add_edge("indexer_entities_agent", "table_creation_code_agent")
     workflow.add_edge("clear_messages", "print_final")
     workflow.add_edge("print_final", END)
-
-    # Conditional Edges - these edges define the flow based on conditions evaluated at runtime
     workflow.add_conditional_edges(
         "tools_for_block_data_extraction",
         block_extractor_agent_router,
