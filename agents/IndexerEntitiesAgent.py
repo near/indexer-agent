@@ -1,5 +1,6 @@
 import json
 import os
+from prompts import indexer_entities_system_prompt
 from typing import Dict, List, Any
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
@@ -21,18 +22,7 @@ def indexer_entities_agent_model():
     # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                '''You are a developer working NEAR Protocol. Your task is to design architecture that takes input schema and identifies key entities to index.
-                
-                Consider the following details:
-                1. Function Calls: Pay particular attention to schemas related to function calls.
-                2. Entities Identification: If the user input does not explicitly define key entities, infer them as best you can falling back on typical blockchain structures such as receipts, accounts, and function calls.
-                3. Performance Considerations: The indexer will be used to design tables in a PostgreSQL database. Ensure the design is optimized for performance and scalability.
-
-                The result should be an EntityResponse. Ensure all nested structures are converted to strings.
-                ''',
-            ),
+            indexer_entities_system_prompt,
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
     ).partial(format_instructions=entity_response_parser.get_format_instructions())

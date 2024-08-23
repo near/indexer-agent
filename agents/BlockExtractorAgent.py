@@ -1,6 +1,7 @@
 import json
 import ast
 import os
+from prompts import (block_extractor_system_prompt,block_extractor_js_prompt,block_extractor_near_social_prompt)
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.utils.function_calling import convert_to_openai_function
@@ -48,211 +49,15 @@ def block_extractor_agent_model(tools):
     # Define the prompt for the agent
     prompt = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                '''You are a JavaScript software engineer working with NEAR Protocol. Your job is to run Javascript functions that accept a block
-                and returns results. You will be supplied specific receiver and block_heights, and your job is to parse through them to identify
-                what sorts of entities we would like to create for our data indexer.
-
-                You will need to run multiple tool steps, after each step return the output and think about what to do next.
-                1. Use the tool get_block_heights to pull the list of relevant block heights depending on the input receiver provided by the user.
-                2. Use tool_infer_schema to generate a schema across block.actions() for block heights in the list.
-                
-                Output results in JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
-                replaced with their escaped version (\\\\n) to make these strings valid for JSON. 
-                Ensure that you output correct Javascript Code using best practices:
-                1. Always use explicit boolean statements and avoid implicit conversions.
-                2. Use array methods such as flatMap, map, and filter to efficiently transform and filter blockchain actions. These methods help create concise and expressive code, making it easier to manage and understand the flow of data processing.
-                3. Implement thorough error handling and logging throughout your code. This practice is crucial for debugging and maintaining the application. By catching potential errors and logging them, you ensure that issues can be diagnosed and resolved without causing unexpected crashes.
-                4. Validate the structure and content of data before processing it. This step is essential to ensure that the data meets the expected format and to prevent runtime errors. Proper data validation helps maintain data integrity and ensures that only the correct data is processed.
-                5. Use asynchronous functions (async/await) to handle input/output operations, such as fetching data from the blockchain or interacting with a database. Asynchronous processing keeps the application responsive and allows it to handle multiple tasks concurrently without blocking the execution flow.
-                6. Encapsulate specific functionalities into separate functions. This modular approach improves the readability and maintainability of your code. By breaking down complex processes into smaller, manageable functions, you make the code easier to test, debug, and extend.
-                ''',
-            ),
-            (
-                "system",
-                '''Note the following schema for each block that will be useful for parsing out the data:
-                `block.actions()` that has following schema:
-                `{"type": "array", "items": {"type": "object", "properties": {"receiptId": {"type": "string"}, "predecessorId": {"type": "string"}, "receiverId": {"type": "string"}, "signerId": {"type": "string"}, "signerPublicKey": {"type": "string"}, "operations": {"type": "array", "items": {"type": "object", "properties": {"Delegate": {"type": "object", "properties": {"delegateAction": {"type": "object", "properties": {"actions": {"type": "array", "items": {"type": "object", "properties": {"FunctionCall": {"type": "object", "properties": {"args": {"type": "string"}, "deposit": {"type": "string"}, "gas": {"type": "integer"}, "methodName": {"type": "string"}}}}}}, "maxBlockHeight": {"type": "integer"}, "nonce": {"type": "integer"}, "publicKey": {"type": "string"}, "receiverId": {"type": "string"}, "senderId": {"type": "string"}}}, "signature": {"type": "string"}}}}}}}}}`
-                `block.receipts()` that has the following schema:
-                `{"type": "array", "items": {"type": "object", "properties": {"receiptKind": {"type": "string"}, "receiptId": {"type": "string"}, "receiverId": {"type": "string"}, "predecessorId": {"type": "string"}, "status": {"type": "object", "properties": {"SuccessValue": {"type": "string"}}}, "executionOutcomeId": {"type": "string"}, "logs": {"type": "array"}}}}`
-                `block.header()` that has following schema:
-                `{"type": "object", "properties": {"height": {"type": "integer"}, "hash": {"type": "string"}, "prevHash": {"type": "string"}, "author": {"type": "string"}, "timestampNanosec": {"type": "string"}, "epochId": {"type": "string"}, "nextEpochId": {"type": "string"}, "gasPrice": {"type": "string"}, "totalSupply": {"type": "string"}, "latestProtocolVersion": {"type": "integer"}, "randomValue": {"type": "string"}, "chunksIncluded": {"type": "integer"}, "validatorProposals": {"type": "array"}}}`
-
-                You will need to run multiple tool steps, after each step return the output and think about what to do next.
-                1. Use the tool get_block_heights to pull the list of relevant block heights depending on the input receiver provided by the user.
-                2. Use block.functionCallsToReceiver('receiver') to filter to receiver and call tool_infer_schema_of_js on all block_heights from step 1.
-
-                '''.replace('{','{{').replace('}','}}')
-            ),
+            block_extractor_system_prompt,
             (
                 "system",
                 f'''Note the following block primitive from near lake: {block_primitive}'''.replace('{','{{').replace('}','}}')
             ),
-            (
-                "human",
-                '''
-                instructions for parsing out a block when using tool_infer_schema_of_js
-                1. Extract data from the Block: Call block.functionCallsToReceiver('receiver') to retrieve the data included in the block. Check if there anything is returned, if not, log a message and exit.
-                2. Decode arguments: Use base64decode to decode the arguments of each FunctionCall operation.
-                3. Do NOT filter on specific method names unless specified otherwise. Do NOT make up method_names.
-                '''
-            ),
-            ( # One shot example
-                "human",
-                """
-                Provide the javascript code for parsing out actions and decoded arguments from the block and filter down to only successful receipts using the receiverId 'receiver'. 
-                Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) replaced with their escaped version (\\\\n) to make these strings valid for JSON. 
-                Ensure that you output correct Javascript Code.
-                """
-            ),
-            (
-                "ai",
-                """
-                js: 
-                `let decodedActions = block.functionCallsToReceiver('receiver').map(fxnCallView => {
-                    let decodedArgs;
-                    try {
-                    decodedArgs = fxnCallView.argsAsJSON(); // Decode the entire args assuming it's a JSON string
-                    } catch (error) {
-                    decodedArgs = fxnCallView.args; // Handle cases where decoding fails
-                    }
-                    return {
-                    ...fxnCallView, // Spread the original fxnCallView object to retain all its properties
-                    args: decodedArgs // Replace the args property with the decoded version
-                    };
-                });
-                return decodedActions;`
-                js_schema: 
-                    `{
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                            "receiptId": {
-                                "type": "string"
-                            },
-                            "predecessorId": {
-                                "type": "string"
-                            },
-                            "receiverId": {
-                                "type": "string"
-                            },
-                            "signerId": {
-                                "type": "string"
-                            },
-                            "signerPublicKey": {
-                                "type": "string"
-                            },
-                            "operations": {
-                                "type": "array",
-                                "items": {
-                                "type": "object",
-                                "properties": {
-                                    "FunctionCall": {
-                                    "type": "object",
-                                    "properties": {
-                                        "args": {
-                                        "anyOf": [
-                                            {
-                                            "type": "string"
-                                            },
-                                            {
-                                            "type": "object",
-                                            "properties": {
-                                                "amount": {
-                                                "type": "string"
-                                                }
-                                            }
-                                            }
-                                        ]
-                                        },
-                                        "deposit": {
-                                        "type": "string"
-                                        },
-                                        "gas": {
-                                        "type": "integer"
-                                        },
-                                        "methodName": {
-                                        "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "args",
-                                        "deposit",
-                                        "gas",
-                                        "methodName"
-                                    ]
-                                    },
-                                    "Stake": {
-                                    "type": "object",
-                                    "properties": {
-                                        "publicKey": {
-                                        "type": "string"
-                                        },
-                                        "stake": {
-                                        "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "publicKey",
-                                        "stake"
-                                    ]
-                                    }
-                                }
-                                }
-                            }
-                            },
-                            "required": [
-                            "operations",
-                            "predecessorId",
-                            "receiptId",
-                            "receiverId",
-                            "signerId",
-                            "signerPublicKey"
-                            ]
-                        }
-                    }`
-                explanation: "
-                The selected JavaScript code snippet is designed return blockchain data. The functionCallsToReceiver parses data to retrieve a list of actions from a block. It filters to only include those where the receiverId matches a specified receiver. 
-                It fetches function calls from the specific receiver, map method is then used to iterate over each function call view. For each function call, it tries to decode the args field using argsAsJSON method from NEAR Lake primitives. If decoding is successful
-                the decoded arguments are stored in the decodedArgs. Finally, the code returns a list of decodedActions, where each action has its operations potentially modified to include decoded arguments for any FunctionCall operations.
-                "
-                """.replace('{','{{').replace('}','}}')
-            ),
-            ( # Few shot example with near social
-                "human",
-                """
-                Provide the javascript code for parsing out actions and decoded arguments from block actions and filter down to only successful receipts using the receiverId 'social.near' 
-                in order to build a feed indexer that tracks posts, commets, and post likes. Output result as a JsResponse format where 'js' and `js_schema` fields have newlines (\\n) 
-                replaced with their escaped version (\\\\n) to make these strings valid for JSON. Ensure that you output correct Javascript Code.
-                """
-            ),   
-            (
-                "ai",
-                """
-                js: `const SOCIAL_DB = "social.near";
-                let nearSocialPosts = block.functionCallsToReceiver(SOCIAL_DB).map(fxnCallView => {
-                    let decodedArgs;
-                    try {
-                        decodedArgs = fxnCallView.argsAsJSON(); // Decode the entire args assuming it's a JSON string
-                    } catch (error) {
-                        decodedArgs = fxnCallView.args; // Handle cases where decoding fails
-                    }
-                    return {
-                        ...fxnCallView, // Spread the original fxnCallView object to retain all its properties
-                        args: decodedArgs // Replace the args property with the decoded version
-                    };
-                });
-                return nearSocialPosts;`
-                explanation: "
-                The provided JavaScript code snippet is designed to process blocks related to a specific Near account (SOCIAL_DB = "social.near"). 
-                It filters to fetch function calls from interacting with the social.near account, map method is then used to iterate over each function call view.
-                For each function call, it tries to decode the args field using argsAsJSON method from NEAR Lake primitives. If decoding is successful
-                the decoded arguments are stored in the decodedArgs. The final result is an array of function calls with decoded arguments.
-                
-                """.replace('{','{{').replace('}','}}')
-            ), 
+            block_extractor_js_prompt[0],
+            block_extractor_js_prompt[1],
+            block_extractor_near_social_prompt[0],  
+            block_extractor_near_social_prompt[1],
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
     ).partial(format_instructions=jsreponse_parser.get_format_instructions())

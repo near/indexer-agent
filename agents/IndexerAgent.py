@@ -51,7 +51,8 @@ def indexer_agent_model(tools):
             # TODO: below should be replaced with a vector database that indexes GitHub repository or npm package types
             (
                 "system",
-                "Here are the type definitions of the block object to help you navigate the block:" + near_primitives_types(),
+                "Here are the type definitions of the block object to help you navigate the block:" + \
+                near_primitives_types(),
             ),
             MessagesPlaceholder(variable_name="messages", optional=True),
         ]
@@ -71,4 +72,3 @@ def indexer_agent_model(tools):
 def tool_executor(tools):
     executor = ToolExecutor(tools=tools)
     return executor
-
