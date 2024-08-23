@@ -1,6 +1,6 @@
 import json
-from prompts import (table_creation_system_prompt,
-                     table_creation_near_social_prompt)
+from prompts import table_creation_system_prompt, table_creation_near_social_prompt
+
 # Define the response schema for our agent
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
@@ -15,8 +15,10 @@ from langchain.output_parsers import PydanticOutputParser
 
 class TableCreationAgentResponse(BaseModel):
     """Final answer to the user"""
+
     code: str = Field(
-        description="The TableCreation Script for Postgres Database code that user requested")
+        description="The TableCreation Script for Postgres Database code that user requested"
+    )
 
     def __str__(self):
         return f"""ddl: ```
@@ -28,10 +30,9 @@ class TableCreationResponse(BaseModel):
     """Final TableCreation answer to the user"""
 
     table_creation_code: str = Field(
-        description="The TableCreation Script for Postgres Database code that user requested")
-    explanation: str = Field(
-        description="How did the agent come up with this answer?"
+        description="The TableCreation Script for Postgres Database code that user requested"
     )
+    explanation: str = Field(description="How did the agent come up with this answer?")
 
 
 ddl_parser = PydanticOutputParser(pydantic_object=TableCreationResponse)
@@ -50,17 +51,23 @@ def table_creation_code_model(tools):
     ).partial(format_instructions=ddl_parser.get_format_instructions())
 
     # Create the OpenAI LLM
-    llm = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True,)
+    llm = ChatOpenAI(
+        model="gpt-4o",
+        temperature=0,
+        streaming=True,
+    )
 
     # model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(TableCreationResponse)
     tools = [convert_to_openai_function(t) for t in tools]
 
-    model = ({"messages": RunnablePassthrough()}
-             | prompt
-             | llm.bind_tools(tools, tool_choice="any")
-             )
+    model = (
+        {"messages": RunnablePassthrough()}
+        | prompt
+        | llm.bind_tools(tools, tool_choice="any")
+    )
 
     return model
+
 
 # Define a class responsible for generating SQL code for table creation based on entity schema
 
@@ -79,7 +86,9 @@ class TableCreationAgent:
         table_creation_code = state.table_creation_code
         indexer_entities_description = state.indexer_entities_description
         entity_schema = state.entity_schema  # Schema of the block data
-        iterations = state.iterations  # Number of iterations the process has gone through
+        iterations = (
+            state.iterations
+        )  # Number of iterations the process has gone through
         error = state.error  # Error message (if any)
 
         # Focus on the latest messages to maintain context relevance
@@ -89,10 +98,13 @@ class TableCreationAgent:
             # only take the original message
             table_creation_msgs = [messages[0]]
             # Append a system message with the block schema for context
-            table_creation_msgs.append(HumanMessage(
-                content=f"Here is the Entity Schema: {entity_schema} and the Entities to create tables for: {indexer_entities_description}"))
+            table_creation_msgs.append(
+                HumanMessage(
+                    content=f"Here is the Entity Schema: {entity_schema} and the Entities to create tables for: {indexer_entities_description}"
+                )
+            )
         else:
-            table_creation_msgs = messages[(-1-iterations*2):]
+            table_creation_msgs = messages[(-1 - iterations * 2) :]
 
         # Invoke the model with the current messages to generate/update the table creation code
         response = self.model.invoke(table_creation_msgs)
@@ -104,7 +116,12 @@ class TableCreationAgent:
         # wrapped_message = SystemMessage(content=str(response))
 
         # Return the updated state including the new table creation code and incremented iteration count
-        return {"messages": messages + [response], "table_creation_code": table_creation_code, "should_continue": False, "iterations": iterations + 1}
+        return {
+            "messages": messages + [response],
+            "table_creation_code": table_creation_code,
+            "should_continue": False,
+            "iterations": iterations + 1,
+        }
 
     def call_tool(self, state):
         print("Test SQL DDL Statement")
@@ -136,10 +153,18 @@ class TableCreationAgent:
 
         # If the tool call was successful, we update the state, otherwise we set an error message
         if messages[-1].content == "DDL statement executed successfully.":
-            table_creation_code = tool_call['function']['arguments']
+            table_creation_code = tool_call["function"]["arguments"]
             should_continue = True
         else:
-            error = "An error occurred while running the SQL DDL statement. " + \
-                messages[-1].content
+            error = (
+                "An error occurred while running the SQL DDL statement. "
+                + messages[-1].content
+            )
 
-        return {"messages": messages, "table_creation_code": table_creation_code, "iterations": iterations+1, "error": error, "should_continue": should_continue}
+        return {
+            "messages": messages,
+            "table_creation_code": table_creation_code,
+            "iterations": iterations + 1,
+            "error": error,
+            "should_continue": should_continue,
+        }

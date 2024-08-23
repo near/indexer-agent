@@ -8,7 +8,7 @@ from pathlib import Path
 import json
 from langchain.pydantic_v1 import BaseModel, Field
 from langchain.tools import StructuredTool, tool
-from typing import Union,Any
+from typing import Union, Any
 
 from tools.bitmap_indexer_client import get_block_heights
 from utils import generate_schema, flatten
@@ -17,12 +17,14 @@ from genson import SchemaBuilder
 
 def fetch_block(height: int) -> str:
     Path(".blockcache").mkdir(exist_ok=True)
-    filename = f'.blockcache/{height}.json'
+    filename = f".blockcache/{height}.json"
     if os.path.isfile(filename):
-        with open(filename, 'r') as f:
+        with open(filename, "r") as f:
             return f.read()
-    streamer_message = requests.get(f'https://70jshyr5cb.execute-api.eu-central-1.amazonaws.com/block/{height}')
-    with open(filename, 'w') as f:
+    streamer_message = requests.get(
+        f"https://70jshyr5cb.execute-api.eu-central-1.amazonaws.com/block/{height}"
+    )
+    with open(filename, "w") as f:
         f.write(streamer_message.text)
     return streamer_message.text
 
@@ -34,11 +36,13 @@ class TestJavascriptOnBlock(BaseModel):
 
 def run_js_on_block(block_height: int, js: str) -> Union[Any, Exception]:
     streamer_message = fetch_block(block_height)
-    primitives = javascript.require(os.path.join(os.path.dirname(__file__), "../node_modules/@near-lake/primitives"))
+    primitives = javascript.require(
+        os.path.join(os.path.dirname(__file__), "../node_modules/@near-lake/primitives")
+    )
     try:
         block = primitives.Block.fromStreamerMessage(json.loads(streamer_message))
         result = javascript.eval_js(js)
-        if hasattr(result, 'valueOf'):
+        if hasattr(result, "valueOf"):
             result = result.valueOf()
     except Exception as e:
         return e
@@ -60,7 +64,9 @@ def run_js_on_blocks_only_schema(block_heights: [int], js: str) -> str:
     return schema_builder.to_json(indent=2)
 
 
-def infer_schema_of_js(receiver: str, js: str, from_days_ago=5, limit=10, block_heights=[]) -> str:
+def infer_schema_of_js(
+    receiver: str, js: str, from_days_ago=5, limit=10, block_heights=[]
+) -> str:
     if len(block_heights) == 0:
         block_heights = get_block_heights(receiver, from_days_ago, limit)
     schema_builder = SchemaBuilder(schema_uri=None)
@@ -80,7 +86,9 @@ def infer_schema_of_js(receiver: str, js: str, from_days_ago=5, limit=10, block_
 
 
 @tool
-def tool_infer_schema_of_js(receiver: str, js: str, from_days_ago=100, limit=10, block_heights=[]) -> str:
+def tool_infer_schema_of_js(
+    receiver: str, js: str, from_days_ago=100, limit=10, block_heights=[]
+) -> str:
     """
     Infers JSON schema of the result of execution of a javascript code on
     block heights where receipts to 'receiver' are present in the last 'from_days_ago' days.
@@ -89,7 +97,7 @@ def tool_infer_schema_of_js(receiver: str, js: str, from_days_ago=100, limit=10,
     :param from_days_ago: from how many days ago to start the search
     :param limit: limit the number of results, default is 10
     :param block_heights: list of block heights to run the code on
-    
+
     Returns:
     str: JSON schema of the result.
     """
@@ -131,8 +139,9 @@ def tool_js_on_block_schema_func(block_height: int, js: str, func_name: str) -> 
 return {func_name}(block)"""
     return run_js_on_block_only_schema(block_height, code)
 
+
 @tool
-def tool_get_block_heights(receiver: str, from_days_ago:int,limit:int) -> [int]:
+def tool_get_block_heights(receiver: str, from_days_ago: int, limit: int) -> [int]:
     """
     Get list of block heights for a given receiver id over 'from_days_ago' days
     To use it, pass the receiver_id, the number of days previous, and limit of blocks
@@ -144,11 +153,12 @@ def tool_get_block_heights(receiver: str, from_days_ago:int,limit:int) -> [int]:
 
     Returns:
     [int]: List of block heights.
-    """    
+    """
     return get_block_heights(receiver, from_days_ago, limit)
 
+
 @tool
-def tool_get_method_names(block_height: int, js:str) -> str:
+def tool_get_method_names(block_height: int, js: str) -> str:
     """
     Return the method names of the result of execution of a javascript code on a given block height
     To use it, pass the block height and the javascript statement to run.
@@ -162,8 +172,9 @@ def tool_get_method_names(block_height: int, js:str) -> str:
     """
     return run_js_on_block(block_height, js)
 
+
 @tool
-def tool_get_block_heights(receiver: str, from_days_ago:int,limit:int) -> [int]:
+def tool_get_block_heights(receiver: str, from_days_ago: int, limit: int) -> [int]:
     """
     Get list ob block heights for a given receiver id over 'from_days_ago' days
     To use it, pass the receiver_id, the number of days previous, and limit of blocks
@@ -175,7 +186,7 @@ def tool_get_block_heights(receiver: str, from_days_ago:int,limit:int) -> [int]:
 
     Returns:
     [int]: List of block heights.
-    """    
+    """
     return get_block_heights(receiver, from_days_ago, limit)
 
 
@@ -195,23 +206,32 @@ tool_js_on_block = StructuredTool.from_function(
 ####################################################################################################
 # we probably won't need these functions, but it is an example of a mix of python and javascipt code
 
+
 def make_function_call(operation: dict, action: dict) -> dict:
-    return {
-        **action,
-        **operation
-    }
+    return {**action, **operation}
 
 
 def get_function_calls_from_block(block_height: int, receiver: str) -> str:
     streamer_message = fetch_block(block_height)
     primitives = javascript.require("@near-lake/primitives")
     block = primitives.Block.fromStreamerMessage(json.loads(streamer_message))
-    operations = flatten([
-        [make_function_call(op.valueOf(), a.valueOf()) for op in a.operations if op['FunctionCall']]
-        for a in block.actions() if a.receiverId == receiver])
+    operations = flatten(
+        [
+            [
+                make_function_call(op.valueOf(), a.valueOf())
+                for op in a.operations
+                if op["FunctionCall"]
+            ]
+            for a in block.actions()
+            if a.receiverId == receiver
+        ]
+    )
 
-    function_calls = [op['FunctionCall'] for op in operations if op['FunctionCall']]
+    function_calls = [op["FunctionCall"] for op in operations if op["FunctionCall"]]
 
-    decoded_function_calls = [{**call, 'args': base64.b64decode(call['args']).decode('utf-8')} for call in function_calls]
+    decoded_function_calls = [
+        {**call, "args": base64.b64decode(call["args"]).decode("utf-8")}
+        for call in function_calls
+    ]
 
     return json.dumps(decoded_function_calls)

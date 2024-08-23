@@ -16,7 +16,9 @@ def get_block_heights(receiver: str, from_days_ago: int = 7, limit=10) -> [int]:
     """
     date_seven_days_ago = datetime.now() - timedelta(days=from_days_ago)
 
-    print(f"Getting block heights from bitmap indexer for receiver={receiver} from_days_ago={from_days_ago} limit={limit}")
+    print(
+        f"Getting block heights from bitmap indexer for receiver={receiver} from_days_ago={from_days_ago} limit={limit}"
+    )
     block_heights = graphql_query(receiver, date_seven_days_ago.date().isoformat())
     return block_heights[:limit]
 
@@ -44,15 +46,21 @@ def graphql_query(receiver: str, starting_block_date: str):
     response = requests.post(url, headers=headers, data=json.dumps({"query": query}))
 
     if response.status_code == 200:
-        bitmaps = response.json()['data']['darunrs_near_bitmap_v5_actions_index']
-        result = [compressed_base64_to_heights(b['first_block_height'], b['bitmap']) for b in bitmaps if b['bitmap']]
+        bitmaps = response.json()["data"]["darunrs_near_bitmap_v5_actions_index"]
+        result = [
+            compressed_base64_to_heights(b["first_block_height"], b["bitmap"])
+            for b in bitmaps
+            if b["bitmap"]
+        ]
         return flatten(result)
     else:
         raise Exception(f"Request failed with status code {response.status_code}")
 
 
 def compressed_base64_to_heights(first_block_height, compressed_base64):
-    compressed_bytes = np.frombuffer(base64.b64decode(compressed_base64), dtype=np.uint8)
+    compressed_bytes = np.frombuffer(
+        base64.b64decode(compressed_base64), dtype=np.uint8
+    )
     bitmap = decompress_to_bitmap_array(compressed_bytes)
     heights = []
     current_height = first_block_height
@@ -65,15 +73,15 @@ def compressed_base64_to_heights(first_block_height, compressed_base64):
 
 def decode_elias_gamma_entry_from_bytes(bytes_array, start_bit=0):
     if bytes_array is None or len(bytes_array) == 0:
-        return {'x': 0, 'last_bit': 0}
+        return {"x": 0, "last_bit": 0}
 
     idx = index_of_first_bit_in_byte_array(bytes_array, start_bit)
     if idx < 0:
-        return {'x': 0, 'last_bit': -1}
+        return {"x": 0, "last_bit": -1}
 
     n = idx - start_bit
     remainder = 0 if n == 0 else get_number_between_bits(bytes_array, idx + 1, idx + n)
-    return {'x': 2 ** n + remainder, 'last_bit': idx + n}
+    return {"x": 2**n + remainder, "last_bit": idx + n}
 
 
 def decompress_to_bitmap_array(compressed_bytes):
@@ -84,7 +92,9 @@ def decompress_to_bitmap_array(compressed_bytes):
     result_bit_idx = 0
 
     while compressed_bit_idx < compressed_bit_length:
-        x, last_bit = decode_elias_gamma_entry_from_bytes(compressed_bytes, compressed_bit_idx).values()
+        x, last_bit = decode_elias_gamma_entry_from_bytes(
+            compressed_bytes, compressed_bit_idx
+        ).values()
         compressed_bit_idx = last_bit + 1
         if x == 0:
             break
@@ -128,7 +138,7 @@ def set_bit_in_bitmap(uint8_array, bit_index, bit_value, write_zero=False):
     new_len = (bit_index // 8) + 1
     if len(uint8_array) < new_len:
         result = np.zeros(new_len, dtype=np.uint8)
-        result[:len(uint8_array)] = uint8_array
+        result[: len(uint8_array)] = uint8_array
     else:
         result = uint8_array.copy()
 

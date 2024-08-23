@@ -1,6 +1,6 @@
 block_extractor_system_prompt = (
     "system",
-    '''You are a JavaScript software engineer working with NEAR Protocol. Your job is to run Javascript functions that accept a block
+    """You are a JavaScript software engineer working with NEAR Protocol. Your job is to run Javascript functions that accept a block
     and returns results. You will be supplied specific receiver and block_heights, and your job is to parse through them to identify
     what sorts of entities we would like to create for our data indexer.
 
@@ -34,7 +34,11 @@ block_extractor_system_prompt = (
     1. Extract data from the Block: Call block.functionCallsToReceiver('receiver') to retrieve the data included in the block. Check if there anything is returned, if not, log a message and exit.
     2. Decode arguments: Use base64decode to decode the arguments of each FunctionCall operation.
     3. Do NOT filter on specific method names unless specified otherwise. Do NOT make up method_names.
-    '''.replace('{', '{{').replace('}', '}}'),
+    """.replace(
+        "{", "{{"
+    ).replace(
+        "}", "}}"
+    ),
 )
 
 block_extractor_js_prompt = [
@@ -158,8 +162,12 @@ block_extractor_js_prompt = [
         It fetches function calls from the specific receiver, map method is then used to iterate over each function call view. For each function call, it tries to decode the args field using argsAsJSON method from NEAR Lake primitives. If decoding is successful
         the decoded arguments are stored in the decodedArgs. Finally, the code returns a list of decodedActions, where each action has its operations potentially modified to include decoded arguments for any FunctionCall operations.
         "
-        """.replace('{', '{{').replace('}', '}}'),
-    )
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
+    ),
 ]
 
 
@@ -194,13 +202,17 @@ block_extractor_near_social_prompt = [
         It filters to fetch function calls from interacting with the social.near account, map method is then used to iterate over each function call view.
         For each function call, it tries to decode the args field using argsAsJSON method from NEAR Lake primitives. If decoding is successful
         the decoded arguments are stored in the decodedArgs. The final result is an array of function calls with decoded arguments.
-        """.replace('{', '{{').replace('}', '}}'),
-    )
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
+    ),
 ]
 
 indexer_entities_system_prompt = (
     "system",
-    '''You are a developer working NEAR Protocol. Your task is to design architecture that takes input schema and identifies key entities to index.
+    """You are a developer working NEAR Protocol. Your task is to design architecture that takes input schema and identifies key entities to index.
                 
     Consider the following details:
     1. Function Calls: Pay particular attention to schemas related to function calls.
@@ -208,12 +220,12 @@ indexer_entities_system_prompt = (
     3. Performance Considerations: The indexer will be used to design tables in a PostgreSQL database. Ensure the design is optimized for performance and scalability.
 
     The result should be an EntityResponse. Ensure all nested structures are converted to strings.
-    ''',
+    """,
 )
 
 table_creation_system_prompt = (
     "system",
-    '''You are a Postgres SQL engineer working with a Javascript Developer.
+    """You are a Postgres SQL engineer working with a Javascript Developer.
     
     Based on schema and entities, generate a TableCreation script for a Postgres database to create 
     tables that can store the results. Each table must have a primary key, generally based on available ID columns.
@@ -227,7 +239,7 @@ table_creation_system_prompt = (
     Output result in a TableCreationAgentResponse format where 'ddl' field is valid PostgreSQL and fields have newlines (\\n) 
     replaced with their escaped version (\\\\n) to make these strings valid for JSON. 
     Only return SQL code and put all SQL code into 1 tool call.
-    ''',
+    """,
 )
 
 table_creation_near_social_prompt = [
@@ -290,7 +302,11 @@ table_creation_near_social_prompt = [
         posts: id, account_id, block_height, receipt_id, content, block_timestamp, accounts_liked, last_comment_timestamp
         comments: id, post_id, account_id, block_height, content, block_timestamp, receipt_id
         post_likes: post_id, account_id, block_height, block_timestamp, receipt_id
-        """.replace('{', '{{').replace('}', '}}'),
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
     ),
     (
         "ai",
@@ -358,13 +374,17 @@ table_creation_near_social_prompt = [
         including fields for IDs, account information, block height, content (for comments), and timestamps. Unique indexes are created to
         ensure data integrity and optimize query performance, and foreign key constraints are added to maintain referential integrity between
         posts and the other two tables, with specific actions defined for updates and deletions."
-        """.replace('{', '{{').replace('}', '}}'),
-    )
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
+    ),
 ]
 
 data_upsertion_system_prompt = (
     "system",
-    '''
+    """
     You are a JavaScript software engineer working with NEAR Protocol. Your task is to write a pure JavaScript function 
     that accepts a JSON schema and PostgreSQL DDL, then generates Javascript for inserting data from the blockchain into the 
     specified table. Return only valid JavaScript code and use only standard JavaScript functions. Do not use Typescript. 
@@ -389,7 +409,7 @@ data_upsertion_system_prompt = (
 
     Output result in a DataUpsertionResponse format where 'DataUpsertion' field should have newlines (\\n) 
     replaced with their escaped version (\\\\n) to make the string valid for JavaScript.
-    ''',
+    """,
 )
 
 data_upsertion_nearcrowd_prompt = [
@@ -487,7 +507,11 @@ data_upsertion_nearcrowd_prompt = [
                     ]
                 }
             }"
-        """.replace('{', '{{').replace('}', '}}'),
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
     ),
     (
         "ai",
@@ -573,7 +597,11 @@ data_upsertion_nearcrowd_prompt = [
         such as the signer ID, block height, receipt ID, block timestamp, and method name, along with the decoded arguments. 
         These objects are then attempted to be upserted into a database with specified fields for conflict resolution and data insertion. 
         The process includes error handling at multiple stages to log issues encountered during data extraction or database upsertion."
-        """.replace('{', '{{').replace('}', '}}'),
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
     ),
 ]
 
@@ -734,7 +762,11 @@ data_upsertion_near_social_prompt = [
                 ]
             }
         }`
-        """.replace('{', '{{').replace('}', '}}'),
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
     ),
     (
         "ai",
@@ -1271,7 +1303,11 @@ data_upsertion_near_social_prompt = [
         "explanation": "This code creates a blockchain indexer using NEAR QueryAPI to handle, transform, and record data from relevant blockchain transactions. The main logic filters transaction data to process and save interactions involving the social.near account. The schema defines tables for posts, comments, and likes, ensuring efficient data querying. Helper functions decode base64 arguments, handle post and comment creation, and manage likes. The indexer also includes GraphQL queries for fetching data from the indexer's database, with an example NEAR component that demonstrates how to query and display post likes.
         To improve coding practices, we defined all helper functions at the beginning of the script before the main logic, and declared constants (SOCIAL_DB) inside the main function but outside the primary logic block for clarity. We also used a detailed and nested approach to parse and handle data, including filtering operations and handling specific cases as needed. Explicitly we handle handle different actions (posts, comments, likes, promotions, and reposts) with separate, well-defined functions and include detailed logging and error messages for various failure cases to aid in debugging and provide clearer information.
         We included helper functions for handling likes (_handlePostLike, _handlePostUnlike) and placed them before the main logic and checked to decode arguments in a detailed manner to ensure data is in the expected format before processing. For example, when handling post creation, first check if the post already exists in the database. If it does not, proceed to insert the post and log success; otherwise, log that the post already exists. Use this structured approach to create robust, maintainable, and clear code, ensuring all edge cases and potential errors are handled appropriately."
-        """.replace('{', '{{').replace('}', '}}'),
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
     ),
 ]
 
@@ -1382,7 +1418,11 @@ data_upsertion_queryapi_prompt = [
             );
         }`,
         Entity Schema: `{\n  \"type\": \"array\",\n  \"items\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"receiverId\": {\n        \"type\": \"string\"\n      },\n      \"methodName\": {\n        \"type\": \"string\"\n      },\n      \"args\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"code\": {\n            \"type\": \"string\"\n          },\n          \"function_name\": {\n            \"type\": \"string\"\n          },\n          \"rule\": {\n            \"type\": \"object\",\n            \"properties\": {\n              \"affected_account_id\": {\n                \"type\": \"string\"\n              },\n              \"kind\": {\n                \"type\": \"string\"\n              },\n              \"status\": {\n                \"type\": \"string\"\n              }\n            },\n            \"required\": [\n              \"affected_account_id\",\n              \"kind\",\n              \"status\"\n            ]\n          },\n          \"schema\": {\n            \"type\": [\n              \"null\",\n              \"string\"\n            ]\n          },\n          \"start_block\": {\n            \"anyOf\": [\n              {\n                \"type\": \"string\"\n              },\n              {\n                \"type\": \"object\",\n                \"properties\": {\n                  \"HEIGHT\": {\n                    \"type\": \"integer\"\n                  }\n                },\n                \"required\": [\n                  \"HEIGHT\"\n                ]\n              }\n            ]\n          }\n        },\n        \"required\": [\n          \"function_name\"\n        ]\n      },\n      \"gas\": {\n        \"type\": \"integer\"\n      },\n      \"deposit\": {\n        \"type\": \"string\"\n      },\n      \"action\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"receiptId\": {\n            \"type\": \"string\"\n          },\n          \"receiptStatus\": {\n            \"type\": \"object\",\n            \"properties\": {\n              \"SuccessValue\": {\n                \"type\": \"string\"\n              },\n              \"Failure\": {\n                \"type\": \"object\",\n                \"properties\": {\n                  \"ActionError\": {\n                    \"type\": \"object\",\n                    \"properties\": {\n                      \"index\": {\n                        \"type\": \"integer\"\n                      },\n                      \"kind\": {\n                        \"type\": \"object\",\n                        \"properties\": {\n                          \"FunctionCallError\": {\n                            \"type\": \"object\",\n                            \"properties\": {\n                              \"ExecutionError\": {\n                                \"type\": \"string\"\n                              }\n                            },\n                            \"required\": [\n                              \"ExecutionError\"\n                            ]\n                          }\n                        },\n                        \"required\": [\n                          \"FunctionCallError\"\n                        ]\n                      }\n                    },\n                    \"required\": [\n                      \"index\",\n                      \"kind\"\n                    ]\n                  }\n                },\n                \"required\": [\n                  \"ActionError\"\n                ]\n              }\n            }\n          },\n          \"predecessorId\": {\n            \"type\": \"string\"\n          },\n          \"receiverId\": {\n            \"type\": \"string\"\n          },\n          \"signerId\": {\n            \"type\": \"string\"\n          },\n          \"signerPublicKey\": {\n            \"type\": \"string\"\n          },\n          \"operations\": {\n            \"type\": \"array\",\n            \"items\": {\n              \"type\": \"object\",\n              \"properties\": {\n                \"FunctionCall\": {\n                  \"type\": \"object\",\n                  \"properties\": {\n                    \"args\": {\n                      \"type\": \"string\"\n                    },\n                    \"deposit\": {\n                      \"type\": \"string\"\n                    },\n                    \"gas\": {\n                      \"type\": \"integer\"\n                    },\n                    \"methodName\": {\n                      \"type\": \"string\"\n                    }\n                  },\n                  \"required\": [\n                    \"args\",\n                    \"deposit\",\n                    \"gas\",\n                    \"methodName\"\n                  ]\n                }\n              },\n              \"required\": [\n                \"FunctionCall\"\n              ]\n            }\n          },\n          \"logs\": {\n            \"type\": \"array\",\n            \"items\": {\n              \"type\": \"string\"\n            }\n          }\n        },\n        \"required\": [\n          \"logs\",\n          \"operations\",\n          \"predecessorId\",\n          \"receiptId\",\n          \"receiptStatus\",\n          \"receiverId\",\n          \"signerId\",\n          \"signerPublicKey\"\n        ]\n      }\n    },\n    \"required\": [\n      \"action\",\n      \"args\",\n      \"deposit\",\n      \"gas\",\n      \"methodName\",\n      \"receiverId\"\n    ]\n  }\n}"
-        """.replace('{', '{{').replace('}', '}}'),
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
     ),
     (
         "ai",
@@ -1609,13 +1649,17 @@ data_upsertion_queryapi_prompt = [
         }
         }`,
         "explanation": "This JavaScript code is designed to process NEAR blockchain blocks, focusing on transactions related to registering and removing indexer functions. Key improvements include null checks using optional chaining to handle potential null values, enhanced error handling within the handleIndexerDeployment function to log detailed error messages and return null on failure, ensuring the function returns the result of the upsert operation for better tracking of success or failure, and adding a check to skip further processing if deployment handling fails. The code also converts nanoseconds to JavaScript Date objects, processes transactions for registering or updating indexer functions by constructing and upserting objects into a database, filters transactions to find and process successful calls to "register_indexer_function" and "remove_indexer_function" methods, and updates the database to mark indexers as removed. This approach ensures robust handling of potential errors and null values, prevents database constraint violations, and improves the overall reliability and efficiency of processing blockchain data for indexer management."
-        """.replace('{', '{{').replace('}', '}}'),
+        """.replace(
+            "{", "{{"
+        ).replace(
+            "}", "}}"
+        ),
     ),
 ]
 
 review_system_prompt = (
     "system",
-    '''You are a software code reviewer fluent in JavaScript and PostgreSQL building QueryAPI Indexers on NEAR Protocol. Your task is to 
+    """You are a software code reviewer fluent in JavaScript and PostgreSQL building QueryAPI Indexers on NEAR Protocol. Your task is to 
                 review incoming JavaScript and PostgreSQL code and only focus on whether the code has major issues or bugs and return a binary flag on whether to repeat. 
                 If the code is not valid JavaScript or PostgreSQL provide feedback. Include specific code snippets or modification suggestions where possible.
 
@@ -1636,5 +1680,5 @@ review_system_prompt = (
                 5. Assume `block.actions()`,`block.receipts()`, and `block.header()` are valid.
                 6. Its okay to include a `return block` call after the code as it is for code execution testing.
                 7. The `context` object is defined by importing near lake primitives and will not cause errors when trying to access `context.db`
-                ''',
+                """,
 )

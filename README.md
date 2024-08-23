@@ -50,6 +50,7 @@ Please note that this structure is subject to change as the project evolves. Alw
 - You can operating the current working version at [IndexerAgent](IndexerAgent.ipynb) 
 - You can test out working code using [QueryAPI](https://dev.near.org/dataplatform.near/widget/QueryApi.App?view=create-new-indexer)
 - You can follow progress of your calls using [Langsmith](https://smith.langchain.com/)
+- You can setup a playground version by following README instructions under [langserve-indexer-agent](langserve-indexer-agent/README.md)
 
 ## Setting up PostgreSQL locally
 Instructions to setup postgresql locally. You'll run the following commands (assuming macOS):

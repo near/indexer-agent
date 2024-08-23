@@ -13,4 +13,3 @@ def tool_get_block_heights(receiver: str, from_days_ago: int = 7, limit=10) -> [
     :return: list of block heights
     """
     return get_block_heights(receiver, from_days_ago, limit)
-

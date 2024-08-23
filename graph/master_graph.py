@@ -11,7 +11,11 @@ from langgraph.prebuilt import ToolExecutor, ToolInvocation
 from agents.BlockExtractorAgent import BlockExtractorAgent, block_extractor_agent_model
 from agents.TableCreationAgent import table_creation_code_model, TableCreationAgent
 from agents.DataUpsertionAgent import data_upsertion_code_model, DataUpsertionCodeAgent
-from agents.IndexerEntitiesAgent import indexer_entities_agent_model, IndexerEntitiesAgent, EntityResponse
+from agents.IndexerEntitiesAgent import (
+    indexer_entities_agent_model,
+    IndexerEntitiesAgent,
+    EntityResponse,
+)
 from agents.ReviewAgent import review_agent_model, ReviewAgent, review_step
 from tools.database import tool_run_sql_ddl
 from tools.NearLake import tool_get_block_heights
@@ -45,50 +49,81 @@ class GraphState(BaseModel):
     """
 
     # Required to run
-    original_prompt: str = Field(
-        description="Prompt of the beginning of the workflow")
+    original_prompt: str = Field(description="Prompt of the beginning of the workflow")
     block_limit: int = Field(
-        default=10, description="Limit on number of blocks to be parsed, default 10 blocks")
+        default=10,
+        description="Limit on number of blocks to be parsed, default 10 blocks",
+    )
     previous_day_limit: int = Field(
-        default=5, description="Limit on number of previous days to pull block from, default 5 days")
+        default=5,
+        description="Limit on number of previous days to pull block from, default 5 days",
+    )
 
     # Optional
     messages: Optional[Sequence[BaseMessage]] = Field(
-        default=[], description="List of messages that track history interacting with agents")
+        default=[],
+        description="List of messages that track history interacting with agents",
+    )
     block_heights: Optional[Sequence[int]] = Field(
-        default=[], description="Block heights of the blocks to be parsed")
+        default=[], description="Block heights of the blocks to be parsed"
+    )
     entity_schema: Optional[str] = Field(
-        default="", description="Extracted entity schema derived from parsing data from blocks")
+        default="",
+        description="Extracted entity schema derived from parsing data from blocks",
+    )
     block_data_extraction_code: Optional[str] = Field(
-        default="", description="Javascript code used to extract entity schema from blocks")
+        default="",
+        description="Javascript code used to extract entity schema from blocks",
+    )
     table_creation_code: Optional[str] = Field(
-        default="", description="Data definition language used to create tables in PostgreSQL")
+        default="",
+        description="Data definition language used to create tables in PostgreSQL",
+    )
     data_upsertion_code: Optional[str] = Field(
-        default="", description="Data manipulation language in Javascript used to insert data into tables using context.db")
+        default="",
+        description="Data manipulation language in Javascript used to insert data into tables using context.db",
+    )
     indexer_entities_description: Optional[str] = Field(
-        default="", description="Description of entities the indexer is meant to track, including specific data and reasoning for each")
+        default="",
+        description="Description of entities the indexer is meant to track, including specific data and reasoning for each",
+    )
     iterations: Optional[int] = Field(
-        default=0, description="Number of tries to generate the code")
+        default=0, description="Number of tries to generate the code"
+    )
     error: Optional[str] = Field(
-        default="", description="Error message if any returned after attempting to execute code")
+        default="",
+        description="Error message if any returned after attempting to execute code",
+    )
     should_continue: Optional[bool] = Field(
-        default=False, description="Boolean used to decide whether or not to continue to next step")
+        default=False,
+        description="Boolean used to decide whether or not to continue to next step",
+    )
     code_iterations_limit: Optional[int] = Field(
-        default=3, description="Number of iterations during automated code generation and review to prevent infinite recursion, default 3")
+        default=3,
+        description="Number of iterations during automated code generation and review to prevent infinite recursion, default 3",
+    )
     human_approval_flag: Optional[str] = Field(
-        default="", description="Yes/no flag for whether human reviewed code should continue")
+        default="",
+        description="Yes/no flag for whether human reviewed code should continue",
+    )
     human_feedback: Optional[str] = Field(
-        default="", description="If human approval is flagged as no, add in feedback")
+        default="", description="If human approval is flagged as no, add in feedback"
+    )
 
 
 # Load agents & tools
 # Block Extractor Agent
-block_extractor_tools = [tool_js_on_block_schema_func,
-                         tool_infer_schema_of_js, tool_get_block_heights]
+block_extractor_tools = [
+    tool_js_on_block_schema_func,
+    tool_infer_schema_of_js,
+    tool_get_block_heights,
+]
 block_extractor_model = block_extractor_agent_model(
-    block_extractor_tools)  # v2 adds the jsresponse parser to prompt
+    block_extractor_tools
+)  # v2 adds the jsresponse parser to prompt
 block_extractor_agent = BlockExtractorAgent(
-    block_extractor_model, ToolExecutor(block_extractor_tools))
+    block_extractor_model, ToolExecutor(block_extractor_tools)
+)
 
 # Indexer Entities Agent
 indexer_entities_model = indexer_entities_agent_model()
@@ -96,15 +131,14 @@ indexer_entities_agent = IndexerEntitiesAgent(indexer_entities_model)
 
 # Table Creation Agent
 table_creation_tools = [tool_run_sql_ddl]
-table_creation_code_agent_model = table_creation_code_model(
-    table_creation_tools)
+table_creation_code_agent_model = table_creation_code_model(table_creation_tools)
 table_creation_code_agent = TableCreationAgent(
-    table_creation_code_agent_model, ToolExecutor(table_creation_tools))
+    table_creation_code_agent_model, ToolExecutor(table_creation_tools)
+)
 
 # DataUpsertion Agent
 data_upsertion_code_agent_model = data_upsertion_code_model()  # v2 no documentation
-data_upsertion_code_agent = DataUpsertionCodeAgent(
-    data_upsertion_code_agent_model)
+data_upsertion_code_agent = DataUpsertionCodeAgent(data_upsertion_code_agent_model)
 
 # Review Agent
 review_agent_model = review_agent_model()
@@ -143,7 +177,7 @@ def code_review_router(state, max_iter=3):
     if should_continue:
         print(f"Completed {step}")
         return f"Completed {step}"
-    elif iterations > max_iter+1:
+    elif iterations > max_iter + 1:
         # Limit the number of iterations to avoid infinite loops
         print("Completed 3 Iterations: Exiting to avoid infinite looping.")
         return "end"
@@ -161,12 +195,13 @@ def human_review_router(state, max_iter=3):
     # If human review is approved, proceed
     if should_continue == True:
         return f"Completed {step}"
-    elif iterations > max_iter+1:
+    elif iterations > max_iter + 1:
         # End the process if maximum iterations are reached
         return "end"
     else:
         # If not approved and max iterations not reached, repeat the step
         return f"Repeat {step}"
+
 
 # Define Graph
 
@@ -176,20 +211,16 @@ def create_graph():
     workflow = StateGraph(GraphState)
 
     # Agent Nodes - these nodes represent different agents handling specific tasks
-    workflow.add_node("extract_block_data_agent",
-                      block_extractor_agent.call_model)
-    workflow.add_node("indexer_entities_agent",
-                      indexer_entities_agent.call_model)
-    workflow.add_node("table_creation_code_agent",
-                      table_creation_code_agent.call_model)
-    workflow.add_node("data_upsertion_code_agent",
-                      data_upsertion_code_agent.call_model)
+    workflow.add_node("extract_block_data_agent", block_extractor_agent.call_model)
+    workflow.add_node("indexer_entities_agent", indexer_entities_agent.call_model)
+    workflow.add_node("table_creation_code_agent", table_creation_code_agent.call_model)
+    workflow.add_node("data_upsertion_code_agent", data_upsertion_code_agent.call_model)
 
     # Tool Nodes - nodes for calling specific tools during the block data extraction process
-    workflow.add_node("tools_for_block_data_extraction",
-                      block_extractor_agent.call_tool)
-    workflow.add_node("tools_for_table_creation",
-                      table_creation_code_agent.call_tool)
+    workflow.add_node(
+        "tools_for_block_data_extraction", block_extractor_agent.call_tool
+    )
+    workflow.add_node("tools_for_table_creation", table_creation_code_agent.call_tool)
 
     # Review Nodes - nodes for reviewing the code automatically and manually (human review)
     workflow.add_node("review_agent", review_agent.call_model)
@@ -197,8 +228,7 @@ def create_graph():
 
     # Add Edges - defines the flow between different nodes based on the task completion
     workflow.set_entry_point("extract_block_data_agent")
-    workflow.add_edge("extract_block_data_agent",
-                      "tools_for_block_data_extraction")
+    workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
     workflow.add_edge("table_creation_code_agent", "tools_for_table_creation")
     workflow.add_edge("data_upsertion_code_agent", "review_agent")
     # Because indexer entities is just a string, does not need to code review
@@ -211,7 +241,7 @@ def create_graph():
         {
             "continue": "review_agent",
             "repeat": "extract_block_data_agent",
-        }
+        },
     )
 
     workflow.add_conditional_edges(
@@ -220,7 +250,7 @@ def create_graph():
         {
             "continue": "review_agent",
             "repeat": "table_creation_code_agent",
-        }
+        },
     )
 
     workflow.add_conditional_edges(
@@ -236,7 +266,7 @@ def create_graph():
             "Repeat Table Creation": "table_creation_code_agent",
             "Repeat Data Upsertion": "data_upsertion_code_agent",
             "end": END,
-        }
+        },
     )
 
     workflow.add_conditional_edges(
@@ -252,10 +282,11 @@ def create_graph():
             "Repeat Table Creation": "table_creation_code_agent",
             "Repeat Data Upsertion": "data_upsertion_code_agent",
             "end": END,
-        }
+        },
     )
 
     return workflow
+
 
 # Create a version without human review for langserve
 
@@ -265,36 +296,37 @@ def create_graph_no_human_review(**kwargs):
     workflow = StateGraph(GraphState)
 
     # Agent Nodes - these nodes represent different agents handling specific tasks
-    workflow.add_node("extract_block_data_agent",
-                      block_extractor_agent.call_model)
-    workflow.add_node("indexer_entities_agent",
-                      indexer_entities_agent.call_model)
-    workflow.add_node("table_creation_code_agent",
-                      table_creation_code_agent.call_model)
-    workflow.add_node("data_upsertion_code_agent",
-                      data_upsertion_code_agent.call_model)
+    workflow.add_node("extract_block_data_agent", block_extractor_agent.call_model)
+    workflow.add_node("indexer_entities_agent", indexer_entities_agent.call_model)
+    workflow.add_node("table_creation_code_agent", table_creation_code_agent.call_model)
+    workflow.add_node("data_upsertion_code_agent", data_upsertion_code_agent.call_model)
 
     # Tool Nodes - nodes for calling specific tools during the block data extraction process
-    workflow.add_node("tools_for_block_data_extraction",
-                      block_extractor_agent.call_tool)
-    workflow.add_node("tools_for_table_creation",
-                      table_creation_code_agent.call_tool)
+    workflow.add_node(
+        "tools_for_block_data_extraction", block_extractor_agent.call_tool
+    )
+    workflow.add_node("tools_for_table_creation", table_creation_code_agent.call_tool)
 
     # Review Nodes - nodes for reviewing the code automatically and manually (human review)
     workflow.add_node("review_agent", review_agent.call_model)
 
     # Print Final End State
-    workflow.add_node("clear_messages",
-                      lambda state: setattr(state, 'messages', []))
-    workflow.add_node("print_final", lambda state: (print(f"""Table Creation Code:
+    workflow.add_node("clear_messages", lambda state: setattr(state, "messages", []))
+    workflow.add_node(
+        "print_final",
+        lambda state: (
+            print(
+                f"""Table Creation Code:
         {state.table_creation_code}
         Data Upsertion Code: 
-        {state.data_upsertion_code}""")))
+        {state.data_upsertion_code}"""
+            )
+        ),
+    )
 
     # Add Edges - defines the flow between different nodes based on the task completion
     workflow.set_entry_point("extract_block_data_agent")
-    workflow.add_edge("extract_block_data_agent",
-                      "tools_for_block_data_extraction")
+    workflow.add_edge("extract_block_data_agent", "tools_for_block_data_extraction")
     workflow.add_edge("table_creation_code_agent", "tools_for_table_creation")
     workflow.add_edge("data_upsertion_code_agent", "review_agent")
     workflow.add_edge("indexer_entities_agent", "table_creation_code_agent")
@@ -308,7 +340,7 @@ def create_graph_no_human_review(**kwargs):
         {
             "continue": "review_agent",
             "repeat": "extract_block_data_agent",
-        }
+        },
     )
 
     workflow.add_conditional_edges(
@@ -317,7 +349,7 @@ def create_graph_no_human_review(**kwargs):
         {
             "continue": "review_agent",
             "repeat": "table_creation_code_agent",
-        }
+        },
     )
 
     workflow.add_conditional_edges(
@@ -332,7 +364,7 @@ def create_graph_no_human_review(**kwargs):
             "Repeat Table Creation": "table_creation_code_agent",
             "Repeat Data Upsertion": "data_upsertion_code_agent",
             "end": END,
-        }
+        },
     )
 
     return workflow
