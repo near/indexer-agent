@@ -9,5 +9,6 @@ langchain_openai
 openai
 numpy
 psycopg2-binary
+pydantic==1.10.13
 python-dotenv
 sqlalchemy

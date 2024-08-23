@@ -50,7 +50,7 @@ Please note that this structure is subject to change as the project evolves. Alw
 - You can operating the current working version at [IndexerAgent](IndexerAgent.ipynb) 
 - You can test out working code using [QueryAPI](https://dev.near.org/dataplatform.near/widget/QueryApi.App?view=create-new-indexer)
 - You can follow progress of your calls using [Langsmith](https://smith.langchain.com/)
-- You can setup a playground version by following README instructions under [langserve-indexer-agent](langserve-indexer-agent/README.md)
+- You can setup a playground version by following README instructions under [Langserve](#langserve)
 
 ## Setting up PostgreSQL locally
 Instructions to setup postgresql locally. You'll run the following commands (assuming macOS):
@@ -76,3 +76,7 @@ Sometimes you might also have to uninstall and reinstall psycopg2
 - Then run `langchain serve`, you can also explicitly run `langchain serve --host 0.0.0.0 --port 8000`
 - Note that langchain serve does not currently allow for human in the loop ([issue](https://github.com/langchain-ai/langserve/issues/313)) so we run the create_graph_no_human_review() from master_graph.py script
 - Navigate to http://localhost:8000/indexer-agent/playground/ and enter a prompt into the "Original prompt" field and click start
+
+![Langserve Setup](assets/langserve_setup.png)
+
+![Langserve Playground](assets/langserve_playground.png)
