@@ -3,3 +3,4 @@
 .env.*
 .blockcache
 __pycache__
+.vscode
