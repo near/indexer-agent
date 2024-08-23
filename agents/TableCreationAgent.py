@@ -7,27 +7,19 @@ from langchain_openai import ChatOpenAI
 from langchain_core.utils.function_calling import convert_to_openai_function
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.messages import SystemMessage, ToolMessage, HumanMessage
 from langgraph.prebuilt import ToolExecutor, ToolInvocation
 from langchain.output_parsers import PydanticOutputParser
 
 
-class TableCreationAgentResponse(BaseModel):
-    """Final answer to the user"""
-
-    code: str = Field(
-        description="The TableCreation Script for Postgres Database code that user requested"
-    )
-
-    def __str__(self):
-        return f"""ddl: ```
-{self.code}
-```"""
-
-
 class TableCreationResponse(BaseModel):
-    """Final TableCreation answer to the user"""
+    """
+    Final response from the agent for table creation, including both the DDL script and the explanation.
+
+    Attributes:
+        table_creation_code (str): The DDL script for creating the table in the Postgres database.
+        explanation (str): An explanation of how the agent derived the table creation code.
+    """
 
     table_creation_code: str = Field(
         description="The TableCreation Script for Postgres Database code that user requested"
@@ -39,8 +31,17 @@ ddl_parser = PydanticOutputParser(pydantic_object=TableCreationResponse)
 
 
 def table_creation_code_model(tools):
+    """
+    Constructs and returns the model pipeline for generating table creation SQL code.
 
-    # Define the prompt for the agent
+    This function sets up the system prompts, configures the language model, and binds tools to the model.
+
+    Args:
+        tools (list): List of tools to be used by the model for generating SQL code.
+
+    Returns:
+        model: The constructed model pipeline for generating the table creation code.
+    """
     prompt = ChatPromptTemplate.from_messages(
         [
             table_creation_system_prompt,
@@ -50,14 +51,12 @@ def table_creation_code_model(tools):
         ]
     ).partial(format_instructions=ddl_parser.get_format_instructions())
 
-    # Create the OpenAI LLM
     llm = ChatOpenAI(
         model="gpt-4o",
         temperature=0,
         streaming=True,
     )
 
-    # model = {"messages": RunnablePassthrough()} | prompt | llm.with_structured_output(TableCreationResponse)
     tools = [convert_to_openai_function(t) for t in tools]
 
     model = (
@@ -69,35 +68,42 @@ def table_creation_code_model(tools):
     return model
 
 
-# Define a class responsible for generating SQL code for table creation based on entity schema
-
-
 class TableCreationAgent:
+    """
+    An agent responsible for generating SQL code for table creation based on an entity schema.
+
+    Attributes:
+        model: The language model responsible for generating the table creation SQL code.
+        tool_executor (ToolExecutor): The executor for running tools that validate the generated SQL code.
+    """
+
     def __init__(self, model, tool_executor: ToolExecutor):
         self.model = model
         self.tool_executor = tool_executor
 
     def call_model(self, state):
-        # Begin the process of generating table creation SQL code
+        """
+        Generates SQL DDL for table creation based on the provided schema and state information.
+
+        This method processes the entity schema and relevant state data to generate or update
+        the SQL table creation script.
+
+        Args:
+            state: An object representing the current state of the table creation process.
+
+        Returns:
+            dict: The updated state containing the new table creation code, iteration count, and any error messages.
+        """
         print("Generating Table Creation Code")
-        # Extract necessary information from the state
-        messages = state.messages  # All messages exchanged in the process
-        # Current table creation code (if any)
+        messages = state.messages
         table_creation_code = state.table_creation_code
         indexer_entities_description = state.indexer_entities_description
-        entity_schema = state.entity_schema  # Schema of the block data
-        iterations = (
-            state.iterations
-        )  # Number of iterations the process has gone through
-        error = state.error  # Error message (if any)
+        entity_schema = state.entity_schema
+        iterations = state.iterations
+        error = state.error
 
-        # Focus on the latest messages to maintain context relevance
-        # This helps in providing the model with the most recent and relevant information
-        # table_creation_msgs = messages[(-1-iterations*2):]
         if error == "":
-            # only take the original message
             table_creation_msgs = [messages[0]]
-            # Append a system message with the block schema for context
             table_creation_msgs.append(
                 HumanMessage(
                     content=f"Here is the Entity Schema: {entity_schema} and the Entities to create tables for: {indexer_entities_description}"
@@ -106,16 +112,8 @@ class TableCreationAgent:
         else:
             table_creation_msgs = messages[(-1 - iterations * 2) :]
 
-        # Invoke the model with the current messages to generate/update the table creation code
         response = self.model.invoke(table_creation_msgs)
 
-        # Update the table creation code with the response from the model
-        # table_creation_code = response.table_creation_code
-
-        # Wrap the response in a system message for logging or further processing
-        # wrapped_message = SystemMessage(content=str(response))
-
-        # Return the updated state including the new table creation code and incremented iteration count
         return {
             "messages": messages + [response],
             "table_creation_code": table_creation_code,
@@ -124,16 +122,26 @@ class TableCreationAgent:
         }
 
     def call_tool(self, state):
+        """
+        Tests the generated SQL DDL statement using the tool executor and updates the state based on the result.
+
+        This method executes the generated DDL statement to validate correctness, logs any errors,
+        and updates the state accordingly.
+
+        Args:
+            state: The current state of the process including messages, DDL code, and errors.
+
+        Returns:
+            dict: The updated state including validation results, iteration count, and any errors.
+        """
         print("Test SQL DDL Statement")
         messages = state.messages
         iterations = state.iterations
         error = state.error
         table_creation_code = state.table_creation_code
         should_continue = state.should_continue
-        # We know the last message involves at least one tool call
         last_message = messages[-1]
 
-        # We loop through all tool calls and append the message to our message log
         for tool_call in last_message.additional_kwargs["tool_calls"]:
             action = ToolInvocation(
                 tool=tool_call["function"]["name"],
@@ -141,17 +149,13 @@ class TableCreationAgent:
                 id=tool_call["id"],
             )
             print(f'Calling tool: {tool_call["function"]["name"]}')
-            # We call the tool_executor and get back a response
             response = self.tool_executor.invoke(action)
-            # We use the response to create a FunctionMessage
             function_message = ToolMessage(
                 content=str(response), name=action.tool, tool_call_id=tool_call["id"]
             )
 
-            # Add the function message to the list
             messages.append(function_message)
 
-        # If the tool call was successful, we update the state, otherwise we set an error message
         if messages[-1].content == "DDL statement executed successfully.":
             table_creation_code = tool_call["function"]["arguments"]
             should_continue = True

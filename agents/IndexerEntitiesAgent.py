@@ -1,5 +1,3 @@
-import json
-import os
 from .prompts import indexer_entities_system_prompt
 from typing import Dict, List, Any
 from langchain_core.pydantic_v1 import BaseModel, Field
@@ -12,7 +10,14 @@ from langchain.output_parsers import PydanticOutputParser
 
 
 class EntityResponse(BaseModel):
-    """Final answer to the user"""
+    """
+    Represents the final response containing the list of entities and the specific data to track.
+
+    Attributes:
+        entities (str): The final list of entities to be tracked by the indexer.
+        data (str): The specific data points to include for each entity.
+        explanation (str): A detailed explanation of how the agent arrived at this list of entities and data points.
+    """
 
     entities: str = Field(
         description="The final list of entities that we should design the indexer to track"
@@ -27,7 +32,15 @@ entity_response_parser = PydanticOutputParser(pydantic_object=EntityResponse)
 
 
 def indexer_entities_agent_model():
-    # Define the prompt for the agent
+    """
+    Constructs and returns the model pipeline for generating indexer entities.
+
+    This function defines the prompts, sets up the OpenAI language model, and
+    configures the model to generate structured output related to entities for the indexer.
+
+    Returns:
+        model: The constructed model pipeline for generating indexer entities and their associated data.
+    """
     prompt = ChatPromptTemplate.from_messages(
         [
             indexer_entities_system_prompt,
@@ -35,7 +48,6 @@ def indexer_entities_agent_model():
         ]
     ).partial(format_instructions=entity_response_parser.get_format_instructions())
 
-    # Create the OpenAI LLM
     llm = ChatOpenAI(
         model="gpt-4o",
         temperature=0,
@@ -52,40 +64,54 @@ def indexer_entities_agent_model():
 
 
 class IndexerEntitiesAgent:
+    """
+    Agent responsible for identifying and generating the logic for tracking indexer entities.
+
+    Attributes:
+        model: The language model used to generate the indexer logic and entity tracking details.
+    """
+
     def __init__(self, model):
+        """
+        Initializes the IndexerEntitiesAgent with the provided model for generating indexer logic.
+
+        Args:
+            model: The language model used for entity identification and indexer logic generation.
+        """
         self.model = model
 
-    # This method is responsible for generating the final indexer logic code.
     def call_model(self, state):
-        # Notify the user that the final indexer logic code generation is in progress
-        print("Identify key entities")
-        # Retrieve the current state information
-        messages = state.messages  # List of messages exchanged during the process
-        entity_schema = state.entity_schema
-        iterations = (
-            state.iterations
-        )  # Number of iterations the process has gone through
-        indexer_entities_description = (
-            state.indexer_entities_description
-        )  # Current indexer logic code (if any)
+        """
+        Generates the indexer logic and identifies key entities based on the current state.
 
-        # If this is the first iteration, add a message summarizing the JavaScript codes used so far
-        if iterations == 0:  # Check if it's the first iteration
+        This method processes the entity schema from the state, invokes the model to
+        generate or update the indexer logic, and returns the updated state with the key entities and data.
+
+        Args:
+            state: The current state containing the entity schema, messages, and iteration count.
+
+        Returns:
+            dict: The updated state with new indexer logic, entities description, and iteration count.
+        """
+        print("Identify key entities")
+        messages = state.messages
+        entity_schema = state.entity_schema
+        iterations = state.iterations
+        indexer_entities_description = state.indexer_entities_description
+
+        if iterations == 0:
             new_message = SystemMessage(
                 content=f"""
             Here is the schema parsed out from blocks: {entity_schema}
             """
             )
-            messages.append(new_message)  # Append the new message to the messages list
+            messages.append(new_message)
 
-        # Invoke the model with the current messages to generate/update the indexer logic code
         response = self.model.invoke(messages)
-        indexer_entities_description = f"List of entities: {response.entities}. Entity specific data: {response.data}"  # Extract the JavaScript code from the response
+        indexer_entities_description = f"List of entities: {response.entities}. Entity specific data: {response.data}"
 
-        # Wrap the response in a system message for logging or further processing
         wrapped_message = SystemMessage(content=str(response))
 
-        # Return the updated state including the new indexer logic code and incremented iteration count
         return {
             "messages": messages + [wrapped_message],
             "indexer_entities_description": indexer_entities_description,

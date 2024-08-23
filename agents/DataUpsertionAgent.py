@@ -18,7 +18,13 @@ from langchain.output_parsers import PydanticOutputParser
 
 
 class DataUpsertionResponse(BaseModel):
-    """Final DataUpsertion answer to the user"""
+    """
+    Represents the final response from the agent, including the generated data upsertion code and an explanation.
+
+    Attributes:
+        data_upsertion_code (str): The final JavaScript data upsertion code requested by the user.
+        explanation (str): An explanation of how the agent generated the data upsertion code.
+    """
 
     data_upsertion_code: str = Field(
         description="The final javascript DataUpsertion code that user requested"
@@ -30,6 +36,18 @@ DataUpsertion_parser = PydanticOutputParser(pydantic_object=DataUpsertionRespons
 
 
 def fetch_query_api_docs(directory):
+    """
+    Fetches the query API documentation from the specified directory.
+
+    This function walks through the directory and reads the contents of all `.txt` files,
+    concatenating them into a single string while sanitizing curly braces for safe formatting.
+
+    Args:
+        directory (str): The path to the directory containing the documentation files.
+
+    Returns:
+        str: A sanitized string of concatenated documentation.
+    """
     query_api_docs = ""
     for root, dirs, files in os.walk(directory):
         for file in files:
@@ -40,7 +58,15 @@ def fetch_query_api_docs(directory):
 
 
 def data_upsertion_code_model():
-    # Define the prompt for the agent
+    """
+    Constructs and returns the model pipeline for generating data upsertion JavaScript code.
+
+    This function defines the system prompts, configures the language model, and binds the
+    necessary tools to generate structured output related to data upsertion code.
+
+    Returns:
+        model: The constructed model pipeline for generating data upsertion code.
+    """
     query_api_docs = fetch_query_api_docs("./query_api_docs")
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -60,7 +86,6 @@ def data_upsertion_code_model():
         ]
     ).partial(format_instructions=DataUpsertion_parser.get_format_instructions())
 
-    # Create the OpenAI LLM
     llm = ChatOpenAI(
         model="gpt-4o",
         temperature=0,
@@ -71,37 +96,50 @@ def data_upsertion_code_model():
         {"messages": RunnablePassthrough()}
         | prompt
         | llm.with_structured_output(DataUpsertionResponse)
-    )  # .bind_tools(tools)
+    )
     return model
 
 
-# Define a class for handling the generation of data upsertion code
-
-
 class DataUpsertionCodeAgent:
+    """
+    An agent responsible for generating and refining JavaScript data upsertion code based on provided schema and context.
+
+    Attributes:
+        model: The language model used to generate the data upsertion code.
+    """
+
     def __init__(self, model):
-        # Initialize the agent with a model for generating code
+        """
+        Initializes the DataUpsertionCodeAgent with a provided language model.
+
+        Args:
+            model: The language model responsible for generating the data upsertion code.
+        """
+
         self.model = model
 
     def call_model(self, state):
-        # Start the process of generating data upsertion code
+        """
+        Generates or updates JavaScript data upsertion code based on the current process state.
+
+        This method retrieves relevant context from the state, invokes the model to generate or update
+        the data upsertion code, and returns the updated state.
+
+        Args:
+            state: The current state of the data upsertion process, including messages, schema, and code snippets.
+
+        Returns:
+            dict: The updated state containing the new data upsertion code, messages, and incremented iteration count.
+        """
         print("Generating Data Upsertion Code")
-
-        # Retrieve necessary information from the state
-        messages = state.messages  # All messages exchanged in the process
-        table_creation_code = state.table_creation_code  # SQL code for creating tables
-        # Current data upsertion code (if any)
+        messages = state.messages
+        table_creation_code = state.table_creation_code
         data_upsertion_code = state.data_upsertion_code
-        # JavaScript code for extracting block data
         block_data_extraction_code = state.block_data_extraction_code
-        entity_schema = state.entity_schema  # Schema of the block data
-        iterations = (
-            state.iterations
-        )  # Number of iterations the process has gone through
-
-        # On the first iteration, append a message with relevant context for the model
-        if iterations == 0:  # Check if it's the first iteration
-            upsert_messages = [messages[0]]  # only take the original message
+        entity_schema = state.entity_schema
+        iterations = state.iterations
+        if iterations == 0:
+            upsert_messages = [messages[0]]
             upsert_messages.append(
                 HumanMessage(
                     content=f"""Here is the relevant context code:
@@ -112,15 +150,9 @@ class DataUpsertionCodeAgent:
             )
         else:
             upsert_messages = messages[(-1 - iterations * 2) :]
-
-        # Invoke the model with the current messages to generate/update the data upsertion code
         response = self.model.invoke(upsert_messages)
-        # Wrap the response in a system message for logging or further processing
         wrapped_message = SystemMessage(content=str(response))
-        # Update the data upsertion code with the response from the model
         data_upsertion_code = response.data_upsertion_code
-
-        # Return the updated state including the new data upsertion code and incremented iteration count
         return {
             "messages": messages + [wrapped_message],
             "data_upsertion_code": data_upsertion_code,

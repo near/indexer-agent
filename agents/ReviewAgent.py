@@ -17,7 +17,13 @@ from query_api_docs.examples import (
 
 
 class CodeReviewResponse(BaseModel):
-    """Final answer to the user"""
+    """
+    Represents the response from the code review agent.
+
+    Attributes:
+        valid_code (bool): A boolean indicating whether the reviewed code is valid.
+        explanation (str): An explanation detailing how the agent determined the validity of the code.
+    """
 
     valid_code: bool = Field(
         description="The final boolean of whether the code is valid"
@@ -27,10 +33,20 @@ class CodeReviewResponse(BaseModel):
 
 code_review_response_parser = PydanticOutputParser(pydantic_object=CodeReviewResponse)
 
-# Takes state and sequentially determines which code to review by checking backwards
-
 
 def review_step(state):
+    """
+    Determines which code section should be reviewed based on the current state.
+
+    This function checks various parts of the state (such as data upsertion, table creation, etc.)
+    and returns the step, code, and code type that needs to be reviewed.
+
+    Args:
+        state: The current state containing various code snippets to be reviewed.
+
+    Returns:
+        tuple: A tuple containing the review step name, code snippet, and code type.
+    """
     review_mappings = [
         ("Data Upsertion", state.data_upsertion_code, "JavaScript"),
         ("Table Creation", state.table_creation_code, "PostgreSQL"),
@@ -48,7 +64,15 @@ def review_step(state):
 
 
 def review_agent_model():
-    # Define the prompt for the agent
+    """
+    Constructs and returns the model pipeline for the code review agent.
+
+    This function defines the prompt structure for the agent, configures the language model (GPT-4),
+    and specifies the output format for code review.
+
+    Returns:
+        model: The constructed model pipeline for performing code reviews.
+    """
     prompt = ChatPromptTemplate.from_messages(
         [
             review_system_prompt,
@@ -56,7 +80,6 @@ def review_agent_model():
         ]
     ).partial(format_instructions=code_review_response_parser.get_format_instructions())
 
-    # Create the OpenAI LLM
     llm = ChatOpenAI(
         model="gpt-4o",
         temperature=0,
@@ -73,34 +96,50 @@ def review_agent_model():
 
 
 class ReviewAgent:
+    """
+    An agent responsible for reviewing code (JavaScript, SQL, or schema) based on a defined process.
+
+    Attributes:
+        model: The language model used for code review, configured with a structured output.
+    """
+
     def __init__(self, model):
-        # Initialize the ReviewAgent with a model for code review
+        """
+        Initializes the ReviewAgent with a provided model for code review.
+
+        Args:
+            model: The language model used to perform the code review.
+        """
         self.model = model
 
     def call_model(self, state):
-        # Method to automatically review code based on the current state
+        """
+        Automatically reviews the code based on the current state and provides feedback.
+
+        The method invokes the language model to analyze code, offer suggestions, and determine
+        whether the code is valid or needs further refinement.
+
+        Args:
+            state: The current state of the code review process, including code snippets and error messages.
+
+        Returns:
+            dict: The updated state after code review, including the decision to continue or iterate further.
+        """
+
         print("Reviewing code...")
-        # Extract relevant information from the state
         messages = state.messages
         iterations = state.iterations
         block_data_extraction_code = state.block_data_extraction_code
         error = state.error
         entity_schema = state.entity_schema
-
-        # Determine the current step, the code to review, and its type
         step, code, code_type = review_step(state)
-
-        # Create a new message prompting for review of the code
         new_message = [
             HumanMessage(
                 content=f"""Review this {code_type} code: {code}
             {error}"""
             )
         ]
-
-        # Provide examples for guidance based on the review step
         if step == "Extract Block Data":
-            # Example code for extracting block data
             new_message.append(
                 HumanMessage(
                     content=f"""Resulted in the following schema: {entity_schema}.
@@ -111,9 +150,8 @@ class ReviewAgent:
                     )
                 )
             )
-            error = ""  # Reset error after providing examples
+            error = ""
         elif step == "Indexer Logic":
-            # Example code for indexer logic
             example_indexer = (
                 get_example_indexer_logic()
                 .replace("\\n", "\\\\n")
@@ -131,7 +169,7 @@ class ReviewAgent:
                     )
                 )
             )
-            error = ""  # Reset error after providing examples
+            error = ""
         elif step == "Data Upsertion":
             new_message.append(
                 HumanMessage(
@@ -146,29 +184,18 @@ class ReviewAgent:
                     )
                 )
             )
-            error = ""  # Reset error after providing examples
-        # Update the messages with the new message
-        messages = messages + new_message  # testing out
-        # Invoke the model with the updated messages for review
+            error = ""
+        messages = messages + new_message
         response = self.model.invoke(messages)
-        # Determine if the code review should continue based on the model's response
         should_continue = response.valid_code
         if should_continue != True:
-
-            # If code is not valid, print a message and repeat the step
             print(f"Code is not valid. Repeating: {step}.")
-            # Increment iterations
             iterations += 1
-            # Update error with the latest explanation
             error = response.explanation
         else:
-            # Reset iterations and error message
             iterations = 0
             error = ""
-        # Wrap the model's response in a system message
         wrapped_message = SystemMessage(content=str(response))
-
-        # Return the updated state including the decision on whether to continue
         return {
             "messages": messages + [wrapped_message],
             "should_continue": should_continue,
@@ -179,24 +206,31 @@ class ReviewAgent:
         }
 
     def human_review(self, state):
-        # Method for manual human review of the code
+        """
+        Manually prompts a human reviewer to check the code.
+
+        This method facilitates a manual review of code by prompting the reviewer to provide feedback
+        or confirm the correctness of the code.
+
+        Args:
+            state: The current state of the code review process, containing code snippets and schema.
+
+        Returns:
+            dict: The updated state based on the human review feedback, including the decision to continue or stop.
+        """
         step, code, code_type = review_step(state)
         messages = state.messages
         entity_schema = state.entity_schema
         response = ""
-        # Prompt for human review until a valid response ('yes' or 'no') is received
         if step == "Extract Block Data":
-            # Print the entity schema for reference during review
             print(f"Entity Schema: {entity_schema}")
         while response != "yes" or response != "no":
             response = input(
                 prompt=f"Please review the {step}: {code}. Is it correct? (yes/no)"
             )
             if response == "yes":
-                # If the code is correct, continue without iterations
                 return {"messages": messages, "should_continue": True, "iterations": 0}
             elif response == "no":
-                # If the code is incorrect, prompt for feedback and do not continue
                 feedback = input(f"Please provide feedback on the {code_type}: {code}")
                 return {
                     "messages": messages + [HumanMessage(content=feedback)],
